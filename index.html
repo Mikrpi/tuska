@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tuska 2026 — My Schedule</title>
+  <style>
+    :root { --bg:#0c0e12; --panel:#16191f; --line:#272c34; --accent:#2aa9e0; --pick:#1a3a2a; --pick-border:#2a9d5a; --clash:#5a1a1a; --clash-border:#d24; }
+    * { box-sizing:border-box; }
+    body { background:var(--bg); color:#e7e9ec; font-family:system-ui,-apple-system,sans-serif; margin:0; padding:16px; }
+    h1 { font-size:22px; margin:0 0 4px; }
+    .sub { color:#9aa0a8; font-size:13px; margin-bottom:14px; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:16px; }
+    button { font-size:14px; padding:8px 12px; background:#222831; color:#e7e9ec; border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+    button.primary { background:var(--accent); border-color:var(--accent); color:#031018; font-weight:bold; }
+    button:disabled { opacity:.45; cursor:not-allowed; }
+    .filters { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; align-items:center; }
+    .filters button.active { background:var(--accent); border-color:var(--accent); color:#031018; font-weight:bold; }
+    .filters .sep { width:1px; align-self:stretch; background:var(--line); margin:0 4px; }
+    .filters .lbl { color:#8b929c; font-size:12px; }
+    .st-inline { color:#8b929c; font-size:11px; font-weight:normal; }
+    .count { color:#9aa0a8; font-size:13px; }
+    .layout { display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start; }
+    .col-days { flex:2 1 520px; min-width:300px; }
+    .col-mine { flex:1 1 280px; min-width:260px; position:sticky; top:16px; }
+    .day { margin-bottom:22px; }
+    .day h2 { font-size:16px; color:var(--accent); margin:0 0 2px; }
+    .day .gates { color:#777; font-size:12px; margin-bottom:8px; }
+    .stage { margin:10px 0 0; }
+    .stage h3 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#8b929c; margin:0 0 5px; }
+    .act { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:7px 10px; border:1px solid var(--line); border-left:4px solid var(--line); border-radius:0 7px 7px 0; margin-bottom:5px; cursor:pointer; user-select:none; }
+    .act:hover { background:#1b1f26; }
+    .act.picked { background:var(--pick); border-color:var(--pick-border); border-left-color:var(--pick-border); }
+    .act .nm { font-weight:600; }
+    .act .tm { color:#9aa0a8; font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .act.picked .tm { color:#bfe9cf; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+    .panel h2 { font-size:15px; margin:0 0 10px; }
+    .mine-day { margin-bottom:12px; }
+    .mine-day .d { font-size:12px; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+    .mine-item { display:flex; justify-content:space-between; gap:8px; padding:5px 8px; border-radius:6px; font-size:13px; }
+    .mine-item .tm { color:#9aa0a8; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .mine-item .st { color:#777; font-size:11px; }
+    .mine-item.clash { background:var(--clash); outline:1px solid var(--clash-border); }
+    .clash-note { color:#ff9a9a; font-size:11px; margin-top:2px; }
+    .empty { color:#777; font-size:13px; }
+    .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--accent); color:#031018; font-weight:bold; padding:10px 16px; border-radius:8px; opacity:0; transition:opacity .2s; pointer-events:none; }
+    .toast.show { opacity:1; }
+  </style>
+</head>
+<body>
+  <h1>Tuska 2026 — My Schedule</h1>
+  <div class="sub">Click the artists you want to see. Your selection lives in the page URL — copy it to save or share.</div>
+
+  <div class="toolbar">
+    <button id="shareBtn" class="primary">Copy share link</button>
+    <button id="clearBtn">Clear all</button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="filters" id="filters"></div>
+
+  <div class="layout">
+    <div class="col-days" id="days"></div>
+    <div class="col-mine">
+      <div class="panel">
+        <h2>My timetable</h2>
+        <div id="mine"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  "use strict";
+
+  let DATA = null;
+  const selected = new Set(); // act ids
+  let dayFilter = ""; // "" = kaikki päivät, muuten päivän id (näkymäasetus, ei mene URL:iin)
+  let viewMode = "stage"; // "stage" = lavajaottelu, "time" = aikajärjestys (näkymäasetus)
+
+  const $ = (id) => document.getElementById(id);
+  const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+
+  // --- URL-tila: valinnat bittimaskina base64url-muodossa hash-osassa (#s=...) ---
+  // Bitti i = acts[i] valittu. Hash ei lähde palvelimelle -> valinta pysyy yksityisenä.
+
+  function encodeSelection() {
+    const n = DATA.acts.length;
+    const bytes = new Uint8Array(Math.ceil(n / 8));
+    for (const id of selected) bytes[id >> 3] |= 1 << (id & 7);
+    let bin = "";
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function decodeSelection(code) {
+    selected.clear();
+    if (!code) return;
+    try {
+      let b64 = code.replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4) b64 += "=";
+      const bin = atob(b64);
+      for (let i = 0; i < DATA.acts.length; i++) {
+        const byte = bin.charCodeAt(i >> 3) || 0;
+        if (byte & (1 << (i & 7))) selected.add(i);
+      }
+    } catch (e) {
+      /* viallinen koodi -> tyhjä valinta */
+    }
+  }
+
+  function syncUrl() {
+    const code = encodeSelection();
+    const hash = code ? "#s=" + code : "";
+    history.replaceState(null, "", location.pathname + location.search + hash);
+  }
+
+  function readUrl() {
+    const m = location.hash.match(/[#&]s=([^&]+)/);
+    decodeSelection(m ? m[1] : "");
+  }
+
+  // --- Renderöinti ---
+
+  function actById(id) { return DATA.acts[id]; }
+
+  function toggle(id) {
+    if (selected.has(id)) selected.delete(id);
+    else selected.add(id);
+    syncUrl();
+    render();
+  }
+
+  // Palauttaa setin valittujen id:istä jotka menevät päällekkäin toisen valitun kanssa.
+  function clashingIds() {
+    const picks = [...selected].map(actById).sort((a, b) =>
+      a.day === b.day ? toMin(a.start) - toMin(b.start) : 0
+    );
+    const clash = new Set();
+    for (let i = 0; i < picks.length; i++) {
+      for (let j = i + 1; j < picks.length; j++) {
+        if (picks[i].day !== picks[j].day) continue;
+        // päällekkäisyys: alkaa ennen kuin toinen loppuu, molemmin puolin
+        if (toMin(picks[i].start) < toMin(picks[j].end) && toMin(picks[j].start) < toMin(picks[i].end)) {
+          clash.add(picks[i].id);
+          clash.add(picks[j].id);
+        }
+      }
+    }
+    return clash;
+  }
+
+  function render() {
+    const clash = clashingIds();
+    renderFilters();
+    renderDays(clash);
+    renderMine(clash);
+    $("count").textContent = `${selected.size} selected` + (clash.size ? ` · ${clash.size} overlapping` : "");
+    $("clearBtn").disabled = selected.size === 0;
+    $("shareBtn").disabled = false;
+  }
+
+  // Päiväsuodatin + näkymävalitsin (lavajaottelu / aikajärjestys). Pelkkiä
+  // selausnäkymän asetuksia, eivät vaikuta valintaan eivätkä jaettavaan linkkiin.
+  function renderFilters() {
+    const wrap = $("filters");
+    wrap.innerHTML = "";
+    const dayOpts = [{ id: "", label: "All days" }].concat(
+      DATA.days.map((d) => ({ id: d.id, label: d.label.split(" ")[0] }))
+    );
+    for (const o of dayOpts) {
+      const b = document.createElement("button");
+      b.textContent = o.label;
+      if (dayFilter === o.id) b.className = "active";
+      b.onclick = () => { dayFilter = o.id; render(); };
+      wrap.appendChild(b);
+    }
+    const sep = document.createElement("span");
+    sep.className = "sep";
+    wrap.appendChild(sep);
+    const lbl = document.createElement("span");
+    lbl.className = "lbl";
+    lbl.textContent = "View:";
+    wrap.appendChild(lbl);
+    for (const o of [{ id: "stage", label: "By stage" }, { id: "time", label: "By time" }]) {
+      const b = document.createElement("button");
+      b.textContent = o.label;
+      if (viewMode === o.id) b.className = "active";
+      b.onclick = () => { viewMode = o.id; render(); };
+      wrap.appendChild(b);
+    }
+  }
+
+  function actRow(a, withStage) {
+    const el = document.createElement("div");
+    el.className = "act" + (selected.has(a.id) ? " picked" : "");
+    const stage = withStage ? ` <span class="st-inline">${a.stage}</span>` : "";
+    el.innerHTML = `<span class="nm">${a.name}${stage}</span><span class="tm">${a.start}–${a.end}</span>`;
+    el.onclick = () => toggle(a.id);
+    return el;
+  }
+
+  function renderDays(clash) {
+    const wrap = $("days");
+    wrap.innerHTML = "";
+    for (const day of DATA.days) {
+      if (dayFilter && day.id !== dayFilter) continue;
+      const dEl = document.createElement("div");
+      dEl.className = "day";
+      dEl.innerHTML = `<h2>${day.label}</h2><div class="gates">Gates ${day.gatesOpen}–${day.gatesClose}</div>`;
+
+      if (viewMode === "time") {
+        // Aikajärjestys lavasta riippumatta; lava näkyy nimen perässä.
+        const acts = DATA.acts
+          .filter((a) => a.day === day.id)
+          .sort((a, b) => toMin(a.start) - toMin(b.start) || a.stage.localeCompare(b.stage));
+        for (const a of acts) dEl.appendChild(actRow(a, true));
+      } else {
+        // Lavajaottelu.
+        for (const stage of DATA.stages) {
+          const acts = DATA.acts
+            .filter((a) => a.day === day.id && a.stage === stage)
+            .sort((a, b) => toMin(a.start) - toMin(b.start));
+          if (!acts.length) continue;
+          const sEl = document.createElement("div");
+          sEl.className = "stage";
+          sEl.innerHTML = `<h3>${stage}</h3>`;
+          for (const a of acts) sEl.appendChild(actRow(a, false));
+          dEl.appendChild(sEl);
+        }
+      }
+      wrap.appendChild(dEl);
+    }
+  }
+
+  function renderMine(clash) {
+    const wrap = $("mine");
+    wrap.innerHTML = "";
+    if (!selected.size) {
+      wrap.innerHTML = '<div class="empty">No artists selected yet.</div>';
+      return;
+    }
+    for (const day of DATA.days) {
+      const acts = [...selected].map(actById)
+        .filter((a) => a.day === day.id)
+        .sort((a, b) => toMin(a.start) - toMin(b.start));
+      if (!acts.length) continue;
+      const dEl = document.createElement("div");
+      dEl.className = "mine-day";
+      dEl.innerHTML = `<div class="d">${day.label}</div>`;
+      for (const a of acts) {
+        const item = document.createElement("div");
+        item.className = "mine-item" + (clash.has(a.id) ? " clash" : "");
+        item.innerHTML =
+          `<span><span class="nm">${a.name}</span><br><span class="st">${a.stage}</span></span>` +
+          `<span class="tm">${a.start}–${a.end}</span>`;
+        dEl.appendChild(item);
+      }
+      wrap.appendChild(dEl);
+    }
+    if (clash.size) {
+      const note = document.createElement("div");
+      note.className = "clash-note";
+      note.textContent = "⚠ Highlighted artists overlap in time.";
+      wrap.appendChild(note);
+    }
+  }
+
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 1600);
+  }
+
+  async function share() {
+    syncUrl();
+    const url = location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast("Link copied to clipboard");
+    } catch (e) {
+      // clipboard ei käytettävissä (esim. ei-HTTPS) -> näytä URL
+      prompt("Copy your schedule link:", url);
+    }
+  }
+
+  async function init() {
+    DATA = await fetch("data.json").then((r) => r.json());
+    document.title = `${DATA.festival} — My Schedule`;
+    readUrl();
+    $("shareBtn").onclick = share;
+    $("clearBtn").onclick = () => { selected.clear(); syncUrl(); render(); };
+    // Selaimen takaisin/eteenpäin (eri jaettu linkki) päivittää valinnan.
+    window.addEventListener("hashchange", () => { readUrl(); render(); });
+    render();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+  </script>
+</body>
+</html>
