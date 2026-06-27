@@ -34,6 +34,12 @@
     .act .nm { font-weight:600; }
     .act .tm { color:#9aa0a8; font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
     .act.picked .tm { color:#bfe9cf; }
+    .act.past { opacity:.4; }
+    .act.live { background:#10222b; border-color:var(--accent); border-left-color:var(--accent); }
+    .act.live .tm { color:var(--accent); }
+    .badge-now { display:inline-block; background:var(--accent); color:#031018; font-size:10px; font-weight:bold; padding:1px 5px; border-radius:4px; margin-left:6px; vertical-align:middle; letter-spacing:.04em; }
+    .pastctrl { margin-bottom:14px; }
+    .pastctrl button { font-size:13px; padding:6px 10px; }
     .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
     .panel h2 { font-size:15px; margin:0 0 10px; }
     .mine-day { margin-bottom:12px; }
@@ -43,6 +49,11 @@
     .mine-item .st { color:#777; font-size:11px; }
     .mine-item.clash { background:var(--clash); outline:1px solid var(--clash-border); }
     .clash-note { color:#ff9a9a; font-size:11px; margin-top:2px; }
+    .mine-item.past { opacity:.45; }
+    .mine-item.live { background:#10222b; outline:1px solid var(--accent); }
+    .mine-item.live .tm { color:var(--accent); }
+    .now-line { display:flex; align-items:center; gap:8px; margin:7px 0; color:var(--accent); font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:.06em; }
+    .now-line::before, .now-line::after { content:""; height:1px; background:var(--accent); flex:1; opacity:.55; }
     .empty { color:#777; font-size:13px; }
     .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--accent); color:#031018; font-weight:bold; padding:10px 16px; border-radius:8px; opacity:0; transition:opacity .2s; pointer-events:none; }
     .toast.show { opacity:1; }
@@ -80,9 +91,62 @@
   const selected = new Set(); // act ids
   let dayFilter = ""; // "" = kaikki päivät, muuten päivän id (näkymäasetus, ei mene URL:iin)
   let viewMode = "stage"; // "stage" = lavajaottelu, "time" = aikajärjestys (näkymäasetus)
+  let showPast = false; // näytetäänkö menneet päivät pääaikataulussa (oletuksena piilossa)
 
   const $ = (id) => document.getElementById(id);
   const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+
+  // --- Aikatietoisuus: "nyt" suhteessa festarin aikatauluun ---
+  // Festarin illat jatkuvat keskiyön yli, joten pelkkä päivämäärävertailu ei
+  // riitä — lasketaan jokaiselle päivälle/esiintyjälle todellinen Date-ikkuna.
+  // Testaus: lisää URL:iin ?now=2026-06-27T18:30 katsoaksesi mitä tahansa hetkeä.
+
+  function nowDate() {
+    const m = location.search.match(/[?&]now=([^&]+)/);
+    if (m) { const d = new Date(decodeURIComponent(m[1])); if (!isNaN(d)) return d; }
+    return new Date();
+  }
+
+  function dayDate(day) {
+    // label esim. "Friday 26.6.2026" -> Date kyseisen päivän alkuun
+    const m = day.label.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+    return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null;
+  }
+
+  function at(day, hhmm) {
+    const base = dayDate(day);
+    if (!base) return null;
+    const [h, mi] = hhmm.split(":").map(Number);
+    return new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, mi);
+  }
+
+  function dayWindow(day) {
+    const start = at(day, day.gatesOpen);
+    let end = at(day, day.gatesClose);
+    if (end <= start) end = new Date(end.getTime() + 86400000); // portit keskiyön yli
+    return { start, end };
+  }
+
+  function dayStatus(day, now) {
+    const { start, end } = dayWindow(day);
+    if (now > end) return "past";
+    if (now >= start) return "current";
+    return "future";
+  }
+
+  // Koko tapahtuma ohi -> ei ole mitään mistä menneitä erottaisi, joten
+  // näytetään silloin kaikki päivät oletuksena (eikä menneitä piiloteta).
+  function eventAllPast(now) {
+    return DATA.days.every((d) => dayStatus(d, now) === "past");
+  }
+
+  function actStatus(a, now) {
+    const day = DATA.days.find((d) => d.id === a.day);
+    const s = at(day, a.start), e = at(day, a.end);
+    if (now >= e) return "past";
+    if (now >= s) return "live";
+    return "upcoming";
+  }
 
   // --- URL-tila: valinnat bittimaskina base64url-muodossa hash-osassa (#s=...) ---
   // Bitti i = acts[i] valittu. Hash ei lähde palvelimelle -> valinta pysyy yksityisenä.
@@ -195,11 +259,14 @@
     }
   }
 
-  function actRow(a, withStage) {
+  function actRow(a, withStage, now) {
     const el = document.createElement("div");
-    el.className = "act" + (selected.has(a.id) ? " picked" : "");
+    const st = actStatus(a, now);
+    el.className = "act" + (selected.has(a.id) ? " picked" : "") +
+      (st === "past" ? " past" : st === "live" ? " live" : "");
     const stage = withStage ? ` <span class="st-inline">${a.stage}</span>` : "";
-    el.innerHTML = `<span class="nm">${a.name}${stage}</span><span class="tm">${a.start}–${a.end}</span>`;
+    const badge = st === "live" ? ` <span class="badge-now">NOW</span>` : "";
+    el.innerHTML = `<span class="nm">${a.name}${stage}${badge}</span><span class="tm">${a.start}–${a.end}</span>`;
     el.onclick = () => toggle(a.id);
     return el;
   }
@@ -207,8 +274,30 @@
   function renderDays(clash) {
     const wrap = $("days");
     wrap.innerHTML = "";
+    const now = nowDate();
+    const allPast = eventAllPast(now);
+
+    // "Näytä menneet päivät" -nappi vain kun selataan kaikkia päiviä ja menneitä
+    // päiviä on olemassa. Jos koko tapahtuma on ohi, nappia ei näytetä (kaikki
+    // näkyy joka tapauksessa). Yksittäisen päivän suodatus näyttää päivän aina.
+    if (!dayFilter && !allPast) {
+      const pastCount = DATA.days.filter((d) => dayStatus(d, now) === "past").length;
+      if (pastCount) {
+        const ctrl = document.createElement("div");
+        ctrl.className = "pastctrl";
+        const b = document.createElement("button");
+        b.textContent = (showPast ? "Hide past days" : "Show past days") + ` (${pastCount})`;
+        if (showPast) b.className = "active";
+        b.onclick = () => { showPast = !showPast; render(); };
+        ctrl.appendChild(b);
+        wrap.appendChild(ctrl);
+      }
+    }
+
     for (const day of DATA.days) {
       if (dayFilter && day.id !== dayFilter) continue;
+      // Piilota menneet päivät oletuksena (vain "kaikki päivät" -näkymässä).
+      if (!dayFilter && !showPast && !allPast && dayStatus(day, now) === "past") continue;
       const dEl = document.createElement("div");
       dEl.className = "day";
       dEl.innerHTML = `<h2>${day.label}</h2><div class="gates">Gates ${day.gatesOpen}–${day.gatesClose}</div>`;
@@ -218,7 +307,7 @@
         const acts = DATA.acts
           .filter((a) => a.day === day.id)
           .sort((a, b) => toMin(a.start) - toMin(b.start) || a.stage.localeCompare(b.stage));
-        for (const a of acts) dEl.appendChild(actRow(a, true));
+        for (const a of acts) dEl.appendChild(actRow(a, true, now));
       } else {
         // Lavajaottelu.
         for (const stage of DATA.stages) {
@@ -229,7 +318,7 @@
           const sEl = document.createElement("div");
           sEl.className = "stage";
           sEl.innerHTML = `<h3>${stage}</h3>`;
-          for (const a of acts) sEl.appendChild(actRow(a, false));
+          for (const a of acts) sEl.appendChild(actRow(a, false, now));
           dEl.appendChild(sEl);
         }
       }
@@ -244,7 +333,14 @@
       wrap.innerHTML = '<div class="empty">No artists selected yet.</div>';
       return;
     }
+    const now = nowDate();
+    const allPast = eventAllPast(now);
+    let shownDays = 0;
     for (const day of DATA.days) {
+      // Piilota menneet päivät oletuksena — sama "Show past days" -nappi
+      // paljastaa ne yhtä aikaa sekä pääaikataulussa että My timetablessa.
+      // Jos koko tapahtuma on ohi, näytetään kaikki päivät oletuksena.
+      if (!showPast && !allPast && dayStatus(day, now) === "past") continue;
       const acts = [...selected].map(actById)
         .filter((a) => a.day === day.id)
         .sort((a, b) => toMin(a.start) - toMin(b.start));
@@ -252,15 +348,34 @@
       const dEl = document.createElement("div");
       dEl.className = "mine-day";
       dEl.innerHTML = `<div class="d">${day.label}</div>`;
+      const isCurrent = dayStatus(day, now) === "current";
+      let nowLineDone = false;
       for (const a of acts) {
+        const st = actStatus(a, now);
+        // Kuluvana päivänä: "nyt"-viiva ennen ensimmäistä esiintyjää joka ei ole
+        // vielä päättynyt -> näkee yhdellä silmäyksellä missä kohtaa mennään.
+        if (isCurrent && !nowLineDone && st !== "past") {
+          dEl.appendChild(nowLine(now));
+          nowLineDone = true;
+        }
+        const badge = st === "live" ? ` <span class="badge-now">NOW</span>` : "";
         const item = document.createElement("div");
-        item.className = "mine-item" + (clash.has(a.id) ? " clash" : "");
+        item.className = "mine-item" + (clash.has(a.id) ? " clash" : "") +
+          (st === "past" ? " past" : st === "live" ? " live" : "");
         item.innerHTML =
-          `<span><span class="nm">${a.name}</span><br><span class="st">${a.stage}</span></span>` +
+          `<span><span class="nm">${a.name}${badge}</span><br><span class="st">${a.stage}</span></span>` +
           `<span class="tm">${a.start}–${a.end}</span>`;
         dEl.appendChild(item);
       }
+      // Kaikki kuluvan päivän valinnat jo ohi -> viiva listan loppuun.
+      if (isCurrent && !nowLineDone) dEl.appendChild(nowLine(now));
       wrap.appendChild(dEl);
+      shownDays++;
+    }
+    // Valintoja on, mutta kaikki menneillä (piilotetuilla) päivillä.
+    if (!shownDays) {
+      wrap.innerHTML = '<div class="empty">All your picks are on past days. Use “Show past days” to see them.</div>';
+      return;
     }
     if (clash.size) {
       const note = document.createElement("div");
@@ -268,6 +383,15 @@
       note.textContent = "⚠ Highlighted artists overlap in time.";
       wrap.appendChild(note);
     }
+  }
+
+  function nowLine(now) {
+    const el = document.createElement("div");
+    el.className = "now-line";
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    el.textContent = `now ${hh}:${mm}`;
+    return el;
   }
 
   function toast(msg) {
@@ -298,6 +422,8 @@
     // Selaimen takaisin/eteenpäin (eri jaettu linkki) päivittää valinnan.
     window.addEventListener("hashchange", () => { readUrl(); render(); });
     render();
+    // Päivitä mennyt/live/tuleva-tilat minuutin välein ilman sivun lataamista.
+    setInterval(render, 60000);
   }
 
   document.addEventListener("DOMContentLoaded", init);
