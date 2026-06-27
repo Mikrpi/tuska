@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tuska 2026 — My Schedule</title>
+  <!-- PWA: asennettava + offline-tuki (service worker rekisteröidään init():ssä). -->
+  <meta name="theme-color" content="#0c0e12">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tuska">
   <style>
     :root { --bg:#0c0e12; --panel:#16191f; --line:#272c34; --accent:#2aa9e0; --pick:#1a3a2a; --pick-border:#2a9d5a; --clash:#5a1a1a; --clash-border:#d24; }
     * { box-sizing:border-box; }
@@ -55,8 +62,32 @@
     .now-line { display:flex; align-items:center; gap:8px; margin:7px 0; color:var(--accent); font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:.06em; }
     .now-line::before, .now-line::after { content:""; height:1px; background:var(--accent); flex:1; opacity:.55; }
     .empty { color:#777; font-size:13px; }
-    .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--accent); color:#031018; font-weight:bold; padding:10px 16px; border-radius:8px; opacity:0; transition:opacity .2s; pointer-events:none; }
+    .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--accent); color:#031018; font-weight:bold; padding:10px 16px; border-radius:8px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:70; }
     .toast.show { opacity:1; }
+
+    /* Mobiili: alapalkin välilehdet (Schedule / My timetable) ja kelluva "Now"-
+       pikanappi. Työpöydällä piilossa, jolloin molemmat palstat näkyvät rinnakkain. */
+    .tabbar { display:none; }
+    .fab { display:none; }
+    @media (max-width: 640px) {
+      body { padding-bottom:72px; } /* tilaa kiinteälle alapalkille */
+      .col-days, .col-mine { flex-basis:100%; min-width:0; }
+      .col-mine { position:static; top:auto; }
+      .act { padding:11px 12px; }       /* isompi kosketuskohta peukalolle */
+      .mine-item { padding:9px 10px; font-size:14px; }
+      .toast { bottom:84px; }
+      .tabbar { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:60;
+        background:var(--panel); border-top:1px solid var(--line); }
+      .tabbar button { flex:1; border:none; border-radius:0; background:none;
+        color:#9aa0a8; font-size:13px; font-weight:600; padding:13px 8px; }
+      .tabbar button.active { color:var(--accent); box-shadow:inset 0 2px 0 var(--accent); }
+      body.tab-schedule .col-mine { display:none; }
+      body.tab-mine .col-days { display:none; }
+      .fab { display:block; position:fixed; right:14px; bottom:60px; z-index:65;
+        background:var(--accent); color:#031018; font-weight:bold; border:none;
+        border-radius:22px; padding:11px 17px; box-shadow:0 3px 12px rgba(0,0,0,.45); }
+      .fab[hidden] { display:none; }
+    }
   </style>
 </head>
 <body>
@@ -84,6 +115,13 @@
 
   <div class="toast" id="toast"></div>
 
+  <!-- Mobiilin alapalkki ja "Now"-pikanappi (näkyvät vain kapealla näytöllä). -->
+  <button class="fab" id="nowFab" hidden>● Now</button>
+  <div class="tabbar" id="tabbar">
+    <button id="tabSchedule">Schedule</button>
+    <button id="tabMine">My timetable</button>
+  </div>
+
   <script>
   "use strict";
 
@@ -92,6 +130,7 @@
   let dayFilter = ""; // "" = kaikki päivät, muuten päivän id (näkymäasetus, ei mene URL:iin)
   let viewMode = "stage"; // "stage" = lavajaottelu, "time" = aikajärjestys (näkymäasetus)
   let showPast = false; // näytetäänkö menneet päivät pääaikataulussa (oletuksena piilossa)
+  let mobileTab = "schedule"; // mobiilin aktiivinen välilehti: "schedule" | "mine"
 
   const $ = (id) => document.getElementById(id);
   const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
@@ -180,11 +219,26 @@
     const code = encodeSelection();
     const hash = code ? "#s=" + code : "";
     history.replaceState(null, "", location.pathname + location.search + hash);
+    saveLocal(code); // varmuuskopio: säilyy myös kun appi avataan ilman jaettua linkkiä
   }
 
   function readUrl() {
     const m = location.hash.match(/[#&]s=([^&]+)/);
     decodeSelection(m ? m[1] : "");
+  }
+
+  // --- Paikallinen varmuuskopio (localStorage) ---
+  // Hash kulkee jaetussa linkissä, mutta jos appi avataan kotinäytön ikonista
+  // ilman linkkiä, valinta säilyy täällä. Avain on festarikohtainen, joten eri
+  // vuosien valinnat eivät sekoitu keskenään.
+  function storageKey() { return "tuska-picks:" + (DATA.festival || "default"); }
+
+  function saveLocal(code) {
+    try { localStorage.setItem(storageKey(), code); } catch (e) { /* esim. privaattitila */ }
+  }
+
+  function loadLocal() {
+    try { return localStorage.getItem(storageKey()) || ""; } catch (e) { return ""; }
   }
 
   // --- Renderöinti ---
@@ -225,6 +279,33 @@
     $("count").textContent = `${selected.size} selected` + (clash.size ? ` · ${clash.size} overlapping` : "");
     $("clearBtn").disabled = selected.size === 0;
     $("shareBtn").disabled = false;
+    // Mobiilivälilehden nimi näyttää valintojen määrän.
+    $("tabMine").textContent = "My timetable" + (selected.size ? ` (${selected.size})` : "");
+    // "Now"-pikanappi näkyy vain festarin aikana (kun jokin päivä on käynnissä).
+    const now = nowDate();
+    $("nowFab").hidden = !DATA.days.some((d) => dayStatus(d, now) === "current");
+  }
+
+  // Mobiilin välilehden vaihto: ohjaa body-luokalla kumpi palsta näkyy.
+  function setTab(tab) {
+    mobileTab = tab;
+    document.body.classList.toggle("tab-schedule", tab === "schedule");
+    document.body.classList.toggle("tab-mine", tab === "mine");
+    $("tabSchedule").classList.toggle("active", tab === "schedule");
+    $("tabMine").classList.toggle("active", tab === "mine");
+  }
+
+  // "Now"-pikanappi: tuo kuluvan päivän näkyviin ja vierittää nykyhetkeen.
+  function jumpToNow() {
+    dayFilter = "";        // varmista että kuluva päivä on näkyvissä
+    setTab("schedule");
+    render();
+    requestAnimationFrame(() => {
+      const t = document.querySelector(".act.live")
+        || document.querySelector("#today-anchor .act:not(.past)")
+        || $("today-anchor");
+      if (t) t.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }
 
   // Päiväsuodatin + näkymävalitsin (lavajaottelu / aikajärjestys). Pelkkiä
@@ -271,6 +352,19 @@
     return el;
   }
 
+  // Jaettu "Show/Hide past days" -nappi. Sama showPast-tila ohjaa molempia näkymiä,
+  // joten nappi tarvitaan kummassakin (mobiilissa vain toinen on kerrallaan näkyvissä).
+  function pastToggle(count) {
+    const ctrl = document.createElement("div");
+    ctrl.className = "pastctrl";
+    const b = document.createElement("button");
+    b.textContent = (showPast ? "Hide past days" : "Show past days") + ` (${count})`;
+    if (showPast) b.className = "active";
+    b.onclick = () => { showPast = !showPast; render(); };
+    ctrl.appendChild(b);
+    return ctrl;
+  }
+
   function renderDays(clash) {
     const wrap = $("days");
     wrap.innerHTML = "";
@@ -282,16 +376,7 @@
     // näkyy joka tapauksessa). Yksittäisen päivän suodatus näyttää päivän aina.
     if (!dayFilter && !allPast) {
       const pastCount = DATA.days.filter((d) => dayStatus(d, now) === "past").length;
-      if (pastCount) {
-        const ctrl = document.createElement("div");
-        ctrl.className = "pastctrl";
-        const b = document.createElement("button");
-        b.textContent = (showPast ? "Hide past days" : "Show past days") + ` (${pastCount})`;
-        if (showPast) b.className = "active";
-        b.onclick = () => { showPast = !showPast; render(); };
-        ctrl.appendChild(b);
-        wrap.appendChild(ctrl);
-      }
+      if (pastCount) wrap.appendChild(pastToggle(pastCount));
     }
 
     for (const day of DATA.days) {
@@ -300,6 +385,7 @@
       if (!dayFilter && !showPast && !allPast && dayStatus(day, now) === "past") continue;
       const dEl = document.createElement("div");
       dEl.className = "day";
+      if (dayStatus(day, now) === "current") dEl.id = "today-anchor"; // "Now"-napin kohde
       dEl.innerHTML = `<h2>${day.label}</h2><div class="gates">Gates ${day.gatesOpen}–${day.gatesClose}</div>`;
 
       if (viewMode === "time") {
@@ -335,6 +421,17 @@
     }
     const now = nowDate();
     const allPast = eventAllPast(now);
+
+    // "Show/Hide past days" myös tässä näkymässä — mobiilissa pääaikataulu (jossa
+    // sama nappi on) on piilossa My timetable -välilehdellä. Lasketaan menneet
+    // päivät, joilla on omia valintoja (vain ne ovat tässä näkymässä piilossa).
+    if (!allPast) {
+      const pastPickDays = DATA.days.filter((d) =>
+        dayStatus(d, now) === "past" && [...selected].some((id) => actById(id).day === d.id)
+      ).length;
+      if (pastPickDays) wrap.appendChild(pastToggle(pastPickDays));
+    }
+
     let shownDays = 0;
     for (const day of DATA.days) {
       // Piilota menneet päivät oletuksena — sama "Show past days" -nappi
@@ -372,9 +469,13 @@
       wrap.appendChild(dEl);
       shownDays++;
     }
-    // Valintoja on, mutta kaikki menneillä (piilotetuilla) päivillä.
+    // Valintoja on, mutta kaikki menneillä (piilotetuilla) päivillä. Lisätään viesti
+    // appendillä (ei innerHTML:llä), jottei yllä lisätty "Show past days" -nappi katoa.
     if (!shownDays) {
-      wrap.innerHTML = '<div class="empty">All your picks are on past days. Use “Show past days” to see them.</div>';
+      const msg = document.createElement("div");
+      msg.className = "empty";
+      msg.textContent = "All your picks are on past days — tap “Show past days” above.";
+      wrap.appendChild(msg);
       return;
     }
     if (clash.size) {
@@ -404,6 +505,16 @@
   async function share() {
     syncUrl();
     const url = location.href;
+    // Mobiilissa natiivi jakovalikko (WhatsApp, viestit…); muuten leikepöytä.
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${DATA.festival} — My Schedule`, url });
+        return;
+      } catch (e) {
+        if (e && e.name === "AbortError") return; // käyttäjä perui jaon
+        // muu virhe -> fallback leikepöytään
+      }
+    }
     try {
       await navigator.clipboard.writeText(url);
       toast("Link copied to clipboard");
@@ -417,13 +528,26 @@
     DATA = await fetch("data.json").then((r) => r.json());
     document.title = `${DATA.festival} — My Schedule`;
     readUrl();
+    // Ei jaettua linkkiä? Palauta viime kerran valinta paikallisesta varmuuskopiosta.
+    if (selected.size === 0) decodeSelection(loadLocal());
+    // Kirjoittaa hashin (jaettavaksi) ja varmuuskopion riippumatta lähteestä.
+    syncUrl();
     $("shareBtn").onclick = share;
     $("clearBtn").onclick = () => { selected.clear(); syncUrl(); render(); };
+    $("tabSchedule").onclick = () => setTab("schedule");
+    $("tabMine").onclick = () => setTab("mine");
+    $("nowFab").onclick = jumpToNow;
+    setTab(mobileTab);
     // Selaimen takaisin/eteenpäin (eri jaettu linkki) päivittää valinnan.
-    window.addEventListener("hashchange", () => { readUrl(); render(); });
+    window.addEventListener("hashchange", () => { readUrl(); saveLocal(encodeSelection()); render(); });
     render();
     // Päivitä mennyt/live/tuleva-tilat minuutin välein ilman sivun lataamista.
     setInterval(render, 60000);
+    // PWA: rekisteröi service worker offline-tukea varten (vaatii HTTPS:n;
+    // epäonnistuu hiljaa esim. file://-protokollalla, mikä on ok).
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
   }
 
   document.addEventListener("DOMContentLoaded", init);
