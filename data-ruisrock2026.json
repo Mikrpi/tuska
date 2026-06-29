@@ -1,0 +1,128 @@
+{
+  "festival": "Ruisrock 2026",
+  "infoUrl": "https://www.ruisrock.fi",
+  "stages": ["Niitty", "Ranta", "Puisto", "Miniranta", "Takapiha", "Club Sateenkaari"],
+  "days": [
+    { "id": "fri", "label": "Friday 3.7.2026", "gatesOpen": "15:00", "gatesClose": "02:00" },
+    { "id": "sat", "label": "Saturday 4.7.2026", "gatesOpen": "13:00", "gatesClose": "02:00" },
+    { "id": "sun", "label": "Sunday 5.7.2026", "gatesOpen": "14:00", "gatesClose": "00:00" }
+  ],
+  "acts": [
+    { "id": 0, "name": "Mouhous", "day": "fri", "stage": "Niitty", "start": "16:30", "end": "17:15" },
+    { "id": 1, "name": "Etta", "day": "fri", "stage": "Niitty", "start": "18:00", "end": "18:50" },
+    { "id": 2, "name": "Isac Elliot", "day": "fri", "stage": "Niitty", "start": "19:45", "end": "20:45" },
+    { "id": 3, "name": "Electric Callboy", "day": "fri", "stage": "Niitty", "start": "22:30", "end": "23:30" },
+    { "id": 4, "name": "Swedish House Mafia", "day": "fri", "stage": "Niitty", "start": "00:30", "end": "01:30" },
+
+    { "id": 5, "name": "Ellimei", "day": "fri", "stage": "Ranta", "start": "16:00", "end": "16:30" },
+    { "id": 6, "name": "Ege Zulu", "day": "fri", "stage": "Ranta", "start": "17:00", "end": "17:50" },
+    { "id": 7, "name": "Cledos", "day": "fri", "stage": "Ranta", "start": "18:30", "end": "19:20" },
+    { "id": 8, "name": "Vesala", "day": "fri", "stage": "Ranta", "start": "20:15", "end": "21:15" },
+    { "id": 9, "name": "Lauri Haav", "day": "fri", "stage": "Ranta", "start": "22:00", "end": "23:00" },
+    { "id": 10, "name": "EsDeeKid", "day": "fri", "stage": "Ranta", "start": "23:45", "end": "00:30" },
+
+    { "id": 11, "name": "Lage", "day": "fri", "stage": "Puisto", "start": "15:45", "end": "16:30" },
+    { "id": 12, "name": "Lost Society", "day": "fri", "stage": "Puisto", "start": "17:15", "end": "18:00" },
+    { "id": 13, "name": "HOKKA", "day": "fri", "stage": "Puisto", "start": "19:00", "end": "19:45" },
+    { "id": 14, "name": "Brennan Heart", "day": "fri", "stage": "Puisto", "start": "21:15", "end": "22:15" },
+    { "id": 15, "name": "Jaakko Kulta", "day": "fri", "stage": "Puisto", "start": "23:30", "end": "00:30" },
+
+    { "id": 16, "name": "Elias Colin", "day": "fri", "stage": "Miniranta", "start": "15:30", "end": "16:00" },
+    { "id": 17, "name": "Efka Crush", "day": "fri", "stage": "Miniranta", "start": "16:30", "end": "17:00" },
+    { "id": 18, "name": "Nenerchy", "day": "fri", "stage": "Miniranta", "start": "18:00", "end": "18:30" },
+    { "id": 19, "name": "Stepa", "day": "fri", "stage": "Miniranta", "start": "19:30", "end": "20:15" },
+    { "id": 20, "name": "Aatulove x Jemina", "day": "fri", "stage": "Miniranta", "start": "21:15", "end": "22:00" },
+    { "id": 21, "name": "koira", "day": "fri", "stage": "Miniranta", "start": "23:00", "end": "23:45" },
+    { "id": 22, "name": "Samuell", "day": "fri", "stage": "Miniranta", "start": "00:30", "end": "01:00" },
+
+    { "id": 23, "name": "Vet Pillows", "day": "fri", "stage": "Takapiha", "start": "16:30", "end": "17:00" },
+    { "id": 24, "name": "Pitch & Match", "day": "fri", "stage": "Takapiha", "start": "18:00", "end": "19:00" },
+    { "id": 25, "name": "Olipa kerran otsikko", "day": "fri", "stage": "Takapiha", "start": "19:20", "end": "20:15" },
+    { "id": 26, "name": "Ruisrock x Singa", "day": "fri", "stage": "Takapiha", "start": "20:30", "end": "01:00" },
+
+    { "id": 27, "name": "Bitchez & Bangerz", "day": "fri", "stage": "Club Sateenkaari", "start": "15:00", "end": "17:00" },
+    { "id": 28, "name": "Zeze", "day": "fri", "stage": "Club Sateenkaari", "start": "17:00", "end": "18:00" },
+    { "id": 29, "name": "Mumin", "day": "fri", "stage": "Club Sateenkaari", "start": "18:00", "end": "19:00" },
+    { "id": 30, "name": "Rony Rex", "day": "fri", "stage": "Club Sateenkaari", "start": "19:00", "end": "20:00" },
+    { "id": 31, "name": "Orkidea", "day": "fri", "stage": "Club Sateenkaari", "start": "20:00", "end": "21:00" },
+    { "id": 32, "name": "I <3 Ibiza", "day": "fri", "stage": "Club Sateenkaari", "start": "21:00", "end": "22:30" },
+    { "id": 33, "name": "Dog Hustlers", "day": "fri", "stage": "Club Sateenkaari", "start": "22:30", "end": "23:30" },
+    { "id": 34, "name": "Emodisko", "day": "fri", "stage": "Club Sateenkaari", "start": "23:30", "end": "01:30" },
+
+    { "id": 35, "name": "Korelon", "day": "sat", "stage": "Niitty", "start": "14:45", "end": "15:30" },
+    { "id": 36, "name": "Nylon Beat", "day": "sat", "stage": "Niitty", "start": "16:30", "end": "17:30" },
+    { "id": 37, "name": "Ares", "day": "sat", "stage": "Niitty", "start": "18:30", "end": "19:30" },
+    { "id": 38, "name": "Behm", "day": "sat", "stage": "Niitty", "start": "20:30", "end": "21:30" },
+    { "id": 39, "name": "KUUMAA", "day": "sat", "stage": "Niitty", "start": "22:30", "end": "23:30" },
+    { "id": 40, "name": "ibe", "day": "sat", "stage": "Niitty", "start": "00:30", "end": "01:30" },
+
+    { "id": 41, "name": "Minttu", "day": "sat", "stage": "Ranta", "start": "14:00", "end": "14:45" },
+    { "id": 42, "name": "Pete Parkkonen", "day": "sat", "stage": "Ranta", "start": "15:30", "end": "16:30" },
+    { "id": 43, "name": "JVG", "day": "sat", "stage": "Ranta", "start": "17:30", "end": "18:30" },
+    { "id": 44, "name": "Käärijä", "day": "sat", "stage": "Ranta", "start": "19:30", "end": "20:30" },
+    { "id": 45, "name": "Erika Vikman", "day": "sat", "stage": "Ranta", "start": "21:30", "end": "22:30" },
+    { "id": 46, "name": "Gettomasa", "day": "sat", "stage": "Ranta", "start": "23:30", "end": "00:30" },
+
+    { "id": 47, "name": "Senya", "day": "sat", "stage": "Puisto", "start": "14:00", "end": "14:45" },
+    { "id": 48, "name": "Ruusut", "day": "sat", "stage": "Puisto", "start": "15:30", "end": "16:30" },
+    { "id": 49, "name": "Maija Vilkkumaa", "day": "sat", "stage": "Puisto", "start": "17:30", "end": "18:30" },
+    { "id": 50, "name": "Emma & Matilda", "day": "sat", "stage": "Puisto", "start": "19:30", "end": "20:30" },
+    { "id": 51, "name": "MELO", "day": "sat", "stage": "Puisto", "start": "21:30", "end": "22:30" },
+    { "id": 52, "name": "OLGA", "day": "sat", "stage": "Puisto", "start": "23:30", "end": "00:30" },
+
+    { "id": 53, "name": "Toivo-Olavi", "day": "sat", "stage": "Miniranta", "start": "13:30", "end": "14:00" },
+    { "id": 54, "name": "Kukkatalo", "day": "sat", "stage": "Miniranta", "start": "14:45", "end": "15:30" },
+    { "id": 55, "name": "keiju", "day": "sat", "stage": "Miniranta", "start": "16:30", "end": "17:15" },
+    { "id": 56, "name": "Modem", "day": "sat", "stage": "Miniranta", "start": "18:45", "end": "19:30" },
+    { "id": 57, "name": "AB", "day": "sat", "stage": "Miniranta", "start": "20:45", "end": "21:30" },
+    { "id": 58, "name": "louna@nline", "day": "sat", "stage": "Miniranta", "start": "22:45", "end": "23:30" },
+
+    { "id": 59, "name": "Matcha Rave", "day": "sat", "stage": "Takapiha", "start": "16:00", "end": "18:15" },
+    { "id": 60, "name": "Nikotellen", "day": "sat", "stage": "Takapiha", "start": "18:30", "end": "19:30" },
+    { "id": 61, "name": "Riivatut Mashupit", "day": "sat", "stage": "Takapiha", "start": "19:45", "end": "21:45" },
+    { "id": 62, "name": "Ruisrock x Singa", "day": "sat", "stage": "Takapiha", "start": "22:00", "end": "01:30" },
+
+    { "id": 63, "name": "Kameli Disco", "day": "sat", "stage": "Club Sateenkaari", "start": "13:00", "end": "15:00" },
+    { "id": 64, "name": "Dj Ina Mikkola", "day": "sat", "stage": "Club Sateenkaari", "start": "15:00", "end": "16:30" },
+    { "id": 65, "name": "Lauantaidisko DJs", "day": "sat", "stage": "Club Sateenkaari", "start": "16:30", "end": "18:00" },
+    { "id": 66, "name": "d1vari dj set", "day": "sat", "stage": "Club Sateenkaari", "start": "18:00", "end": "19:30" },
+    { "id": 67, "name": "Hot Girl Club", "day": "sat", "stage": "Club Sateenkaari", "start": "19:30", "end": "21:00" },
+    { "id": 68, "name": "Dj hapan korppu", "day": "sat", "stage": "Club Sateenkaari", "start": "21:00", "end": "22:00" },
+    { "id": 69, "name": "I WANNA DANCE WITH SOMBADI", "day": "sat", "stage": "Club Sateenkaari", "start": "22:00", "end": "23:30" },
+    { "id": 70, "name": "Guilty Pleasures DJs", "day": "sat", "stage": "Club Sateenkaari", "start": "23:30", "end": "01:30" },
+
+    { "id": 71, "name": "Olavi Uusivirta", "day": "sun", "stage": "Niitty", "start": "15:45", "end": "16:45" },
+    { "id": 72, "name": "Mirella", "day": "sun", "stage": "Niitty", "start": "17:30", "end": "18:30" },
+    { "id": 73, "name": "Gunna", "day": "sun", "stage": "Niitty", "start": "19:30", "end": "20:30" },
+    { "id": 74, "name": "Lily Allen", "day": "sun", "stage": "Niitty", "start": "21:45", "end": "22:45" },
+
+    { "id": 75, "name": "Sara Bee", "day": "sun", "stage": "Ranta", "start": "15:15", "end": "16:00" },
+    { "id": 76, "name": "Costi", "day": "sun", "stage": "Ranta", "start": "16:45", "end": "17:30" },
+    { "id": 77, "name": "Audrey Nuna", "day": "sun", "stage": "Ranta", "start": "18:30", "end": "19:30" },
+    { "id": 78, "name": "Eppu Normaali", "day": "sun", "stage": "Ranta", "start": "20:15", "end": "21:45" },
+    { "id": 79, "name": "Averagekidluke", "day": "sun", "stage": "Ranta", "start": "22:45", "end": "23:30" },
+
+    { "id": 80, "name": "Antti Autio", "day": "sun", "stage": "Puisto", "start": "15:00", "end": "15:45" },
+    { "id": 81, "name": "VIIVI", "day": "sun", "stage": "Puisto", "start": "16:45", "end": "17:30" },
+    { "id": 82, "name": "Komiat", "day": "sun", "stage": "Puisto", "start": "18:30", "end": "19:30" },
+    { "id": 83, "name": "Evelina", "day": "sun", "stage": "Puisto", "start": "20:30", "end": "21:30" },
+    { "id": 84, "name": "Ellinoora", "day": "sun", "stage": "Puisto", "start": "22:45", "end": "23:45" },
+
+    { "id": 85, "name": "Nemesis", "day": "sun", "stage": "Miniranta", "start": "14:30", "end": "15:00" },
+    { "id": 86, "name": "Sonia", "day": "sun", "stage": "Miniranta", "start": "16:00", "end": "16:45" },
+    { "id": 87, "name": "Alina Burnet", "day": "sun", "stage": "Miniranta", "start": "17:30", "end": "18:30" },
+    { "id": 88, "name": "Asla Jo", "day": "sun", "stage": "Miniranta", "start": "19:30", "end": "20:15" },
+    { "id": 89, "name": "Aaro630", "day": "sun", "stage": "Miniranta", "start": "21:45", "end": "22:45" },
+
+    { "id": 90, "name": "Päiväkirjaklubi", "day": "sun", "stage": "Takapiha", "start": "16:00", "end": "17:15" },
+    { "id": 91, "name": "Tuplakääk", "day": "sun", "stage": "Takapiha", "start": "17:30", "end": "18:30" },
+    { "id": 92, "name": "Ruisrock x Singa", "day": "sun", "stage": "Takapiha", "start": "18:45", "end": "23:00" },
+
+    { "id": 93, "name": "Dj Seben", "day": "sun", "stage": "Club Sateenkaari", "start": "14:00", "end": "16:00" },
+    { "id": 94, "name": "Bratz", "day": "sun", "stage": "Club Sateenkaari", "start": "16:00", "end": "17:30" },
+    { "id": 95, "name": "TBA", "day": "sun", "stage": "Club Sateenkaari", "start": "17:30", "end": "18:30" },
+    { "id": 96, "name": "jonttuluhtavaara", "day": "sun", "stage": "Club Sateenkaari", "start": "18:30", "end": "19:30" },
+    { "id": 97, "name": "Super8 & Tab", "day": "sun", "stage": "Club Sateenkaari", "start": "19:30", "end": "21:00" },
+    { "id": 98, "name": "Paha Vaanii", "day": "sun", "stage": "Club Sateenkaari", "start": "21:00", "end": "00:00" }
+  ]
+}

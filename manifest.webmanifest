@@ -1,7 +1,7 @@
 {
-  "name": "Tuska — My Schedule",
-  "short_name": "Tuska",
-  "description": "Build and share your personal Tuska festival schedule. Works offline.",
+  "name": "Metal Festival Schedule",
+  "short_name": "Festivals",
+  "description": "Build and share your personal metal festival schedule. Works offline.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

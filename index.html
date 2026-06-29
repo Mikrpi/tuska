@@ -21,6 +21,7 @@
     button { font-size:14px; padding:8px 12px; background:#222831; color:#e7e9ec; border:1px solid var(--line); border-radius:8px; cursor:pointer; }
     button.primary { background:var(--accent); border-color:var(--accent); color:#031018; font-weight:bold; }
     button:disabled { opacity:.45; cursor:not-allowed; }
+    .fest-select { font-size:14px; padding:8px 12px; background:#222831; color:#e7e9ec; border:1px solid var(--line); border-radius:8px; cursor:pointer; max-width:100%; }
     .filters { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; align-items:center; }
     .filters:last-of-type { margin-bottom:14px; }
     .filters button.active { background:var(--accent); border-color:var(--accent); color:#031018; font-weight:bold; }
@@ -91,10 +92,11 @@
   </style>
 </head>
 <body>
-  <h1>Tuska 2026 — My Schedule</h1>
+  <h1 id="appTitle">Festival Schedule</h1>
   <div class="sub">Click the artists you want to see. Your selection lives in the page URL — copy it to save or share.</div>
 
   <div class="toolbar">
+    <select id="festivalSelect" class="fest-select" aria-label="Choose festival"></select>
     <button id="shareBtn" class="primary">Copy share link</button>
     <button id="clearBtn">Clear all</button>
     <span class="count" id="count"></span>
@@ -126,6 +128,8 @@
   "use strict";
 
   let DATA = null;
+  let FESTIVALS = [];        // festari-indeksi: [{ id, name, data }]
+  let activeFestival = "";   // aktiivisen festarin id (kulkee URL:ssa ?f=...)
   const selected = new Set(); // act ids
   let dayFilter = ""; // "" = kaikki päivät, muuten päivän id (näkymäasetus, ei mene URL:iin)
   let viewMode = "stage"; // "stage" = lavajaottelu, "time" = aikajärjestys (näkymäasetus)
@@ -134,6 +138,18 @@
 
   const $ = (id) => document.getElementById(id);
   const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+
+  // Esiintyjien/lavojen nimet syötetään innerHTML-templaatteihin, joten ne pitää
+  // escapeta — nimissä esiintyy mm. "&" ja "<" (esim. "Pitch & Match", "I <3 Ibiza").
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  // Festari-illat jatkuvat keskiyön yli. Esiintyjä joka alkaa/loppuu aamuyöllä
+  // (ennen puoltapäivää) kuuluu loogisesti edellisen illan jatkoksi, joten sille
+  // lisätään 24 h järjestystä ja päällekkäisyyksien vertailua varten. Mikään
+  // festaripäivä ei ala ennen puoltapäivää, joten raja klo 12:00 on turvallinen.
+  const DAY_CUTOFF = 12 * 60;
+  const eveMin = (t) => { const m = toMin(t); return m < DAY_CUTOFF ? m + 1440 : m; };
 
   // --- Aikatietoisuus: "nyt" suhteessa festarin aikatauluun ---
   // Festarin illat jatkuvat keskiyön yli, joten pelkkä päivämäärävertailu ei
@@ -156,13 +172,15 @@
     const base = dayDate(day);
     if (!base) return null;
     const [h, mi] = hhmm.split(":").map(Number);
-    return new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, mi);
+    const d = new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, mi);
+    // Aamuyön ajat (ennen puoltapäivää) kuuluvat seuraavalle kalenterivuorokaudelle.
+    if (h * 60 + mi < DAY_CUTOFF) d.setDate(d.getDate() + 1);
+    return d;
   }
 
   function dayWindow(day) {
     const start = at(day, day.gatesOpen);
-    let end = at(day, day.gatesClose);
-    if (end <= start) end = new Date(end.getTime() + 86400000); // portit keskiyön yli
+    const end = at(day, day.gatesClose); // at() siirtää keskiyön yli menevän sulkemisajan
     return { start, end };
   }
 
@@ -231,7 +249,7 @@
   // Hash kulkee jaetussa linkissä, mutta jos appi avataan kotinäytön ikonista
   // ilman linkkiä, valinta säilyy täällä. Avain on festarikohtainen, joten eri
   // vuosien valinnat eivät sekoitu keskenään.
-  function storageKey() { return "tuska-picks:" + (DATA.festival || "default"); }
+  function storageKey() { return "festival-picks:" + (activeFestival || "default"); }
 
   function saveLocal(code) {
     try { localStorage.setItem(storageKey(), code); } catch (e) { /* esim. privaattitila */ }
@@ -255,14 +273,14 @@
   // Palauttaa setin valittujen id:istä jotka menevät päällekkäin toisen valitun kanssa.
   function clashingIds() {
     const picks = [...selected].map(actById).sort((a, b) =>
-      a.day === b.day ? toMin(a.start) - toMin(b.start) : 0
+      a.day === b.day ? eveMin(a.start) - eveMin(b.start) : 0
     );
     const clash = new Set();
     for (let i = 0; i < picks.length; i++) {
       for (let j = i + 1; j < picks.length; j++) {
         if (picks[i].day !== picks[j].day) continue;
         // päällekkäisyys: alkaa ennen kuin toinen loppuu, molemmin puolin
-        if (toMin(picks[i].start) < toMin(picks[j].end) && toMin(picks[j].start) < toMin(picks[i].end)) {
+        if (eveMin(picks[i].start) < eveMin(picks[j].end) && eveMin(picks[j].start) < eveMin(picks[i].end)) {
           clash.add(picks[i].id);
           clash.add(picks[j].id);
         }
@@ -345,9 +363,9 @@
     const st = actStatus(a, now);
     el.className = "act" + (selected.has(a.id) ? " picked" : "") +
       (st === "past" ? " past" : st === "live" ? " live" : "");
-    const stage = withStage ? ` <span class="st-inline">${a.stage}</span>` : "";
+    const stage = withStage ? ` <span class="st-inline">${esc(a.stage)}</span>` : "";
     const badge = st === "live" ? ` <span class="badge-now">NOW</span>` : "";
-    el.innerHTML = `<span class="nm">${a.name}${stage}${badge}</span><span class="tm">${a.start}–${a.end}</span>`;
+    el.innerHTML = `<span class="nm">${esc(a.name)}${stage}${badge}</span><span class="tm">${a.start}–${a.end}</span>`;
     el.onclick = () => toggle(a.id);
     return el;
   }
@@ -392,14 +410,14 @@
         // Aikajärjestys lavasta riippumatta; lava näkyy nimen perässä.
         const acts = DATA.acts
           .filter((a) => a.day === day.id)
-          .sort((a, b) => toMin(a.start) - toMin(b.start) || a.stage.localeCompare(b.stage));
+          .sort((a, b) => eveMin(a.start) - eveMin(b.start) || a.stage.localeCompare(b.stage));
         for (const a of acts) dEl.appendChild(actRow(a, true, now));
       } else {
         // Lavajaottelu.
         for (const stage of DATA.stages) {
           const acts = DATA.acts
             .filter((a) => a.day === day.id && a.stage === stage)
-            .sort((a, b) => toMin(a.start) - toMin(b.start));
+            .sort((a, b) => eveMin(a.start) - eveMin(b.start));
           if (!acts.length) continue;
           const sEl = document.createElement("div");
           sEl.className = "stage";
@@ -440,7 +458,7 @@
       if (!showPast && !allPast && dayStatus(day, now) === "past") continue;
       const acts = [...selected].map(actById)
         .filter((a) => a.day === day.id)
-        .sort((a, b) => toMin(a.start) - toMin(b.start));
+        .sort((a, b) => eveMin(a.start) - eveMin(b.start));
       if (!acts.length) continue;
       const dEl = document.createElement("div");
       dEl.className = "mine-day";
@@ -460,7 +478,7 @@
         item.className = "mine-item" + (clash.has(a.id) ? " clash" : "") +
           (st === "past" ? " past" : st === "live" ? " live" : "");
         item.innerHTML =
-          `<span><span class="nm">${a.name}${badge}</span><br><span class="st">${a.stage}</span></span>` +
+          `<span><span class="nm">${esc(a.name)}${badge}</span><br><span class="st">${esc(a.stage)}</span></span>` +
           `<span class="tm">${a.start}–${a.end}</span>`;
         dEl.appendChild(item);
       }
@@ -524,9 +542,75 @@
     }
   }
 
+  // --- Festarivalinta ---
+  // Aktiivinen festari kulkee URL:n query-osassa (?f=<id>), jotta jaettu linkki ja
+  // sivun uudelleenlataus muistavat sen. Valinnat (#s=...) ovat festarikohtaisia:
+  // bittimaski on sidottu juuri sen festarin acts-listaan, joten festaria
+  // vaihdettaessa ladataan sivu uudelleen puhtaalta pöydältä (ilman vanhaa hashia).
+  function festivalParam() {
+    const m = location.search.match(/[?&]f=([^&]+)/);
+    return m ? decodeURIComponent(m[1]) : "";
+  }
+
+  function lastFestival() {
+    try { return localStorage.getItem("festival-active") || ""; } catch (e) { return ""; }
+  }
+
+  function rememberFestival(id) {
+    try { localStorage.setItem("festival-active", id); } catch (e) { /* privaattitila */ }
+  }
+
+  // Rakentaa osoitteen jossa ?f=<id> on asetettu mutta muut query-parametrit
+  // (esim. testaukseen tarkoitettu ?now=) säilyvät. keepHash=false pudottaa
+  // valinnat (#s=...), mitä käytetään festaria vaihdettaessa.
+  function urlWithFestival(id, keepHash) {
+    const params = new URLSearchParams(location.search);
+    params.set("f", id);
+    return location.pathname + "?" + params.toString() + (keepHash ? location.hash : "");
+  }
+
+  function chooseFestival() {
+    const ids = FESTIVALS.map((f) => f.id);
+    const param = festivalParam();
+    if (ids.includes(param)) return param;
+    const last = lastFestival();
+    if (ids.includes(last)) return last;
+    return FESTIVALS[0].id; // oletus: listan ensimmäinen (tuorein/tuleva)
+  }
+
+  function populateFestivalSelect() {
+    const sel = $("festivalSelect");
+    sel.innerHTML = "";
+    for (const f of FESTIVALS) {
+      const o = document.createElement("option");
+      o.value = f.id;
+      o.textContent = f.name;
+      if (f.id === activeFestival) o.selected = true;
+      sel.appendChild(o);
+    }
+    // Festaria vaihdettaessa navigoidaan uuteen ?f=-osoitteeseen ILMAN hashia,
+    // jolloin init() lataa oikean datan ja palauttaa sen festarin omat valinnat.
+    sel.onchange = () => {
+      location.assign(urlWithFestival(sel.value, false));
+    };
+  }
+
   async function init() {
-    DATA = await fetch("data.json").then((r) => r.json());
+    const reg = await fetch("festivals.json").then((r) => r.json());
+    FESTIVALS = reg.festivals || [];
+    activeFestival = chooseFestival();
+    rememberFestival(activeFestival);
+    const fest = FESTIVALS.find((f) => f.id === activeFestival);
+
+    // Varmista että ?f= on URL:ssa (jotta jaettu linkki ja syncUrl säilyttävät sen).
+    if (festivalParam() !== activeFestival) {
+      history.replaceState(null, "", urlWithFestival(activeFestival, true));
+    }
+
+    DATA = await fetch(fest.data).then((r) => r.json());
     document.title = `${DATA.festival} — My Schedule`;
+    $("appTitle").textContent = `${DATA.festival} — My Schedule`;
+    populateFestivalSelect();
     readUrl();
     // Ei jaettua linkkiä? Palauta viime kerran valinta paikallisesta varmuuskopiosta.
     if (selected.size === 0) decodeSelection(loadLocal());

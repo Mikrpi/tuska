@@ -1,19 +1,22 @@
 /* Tuska-aikataulun service worker — offline-tuki festarialueen heikossa kentässä.
  *
  * Strategiat:
- *  - data.json: network-first → online saa aina tuoreen ohjelman (myös korjaukset),
- *    offline putoaa viimeksi tallennettuun versioon.
+ *  - *.json (festari-indeksi + datatiedostot): network-first → online saa aina
+ *    tuoreen ohjelman (myös korjaukset), offline putoaa viimeksi tallennettuun.
  *  - muut tiedostot (app shell, ikonit): cache-first + taustapäivitys
  *    (stale-while-revalidate) → nopea avaus ja toimii ilman verkkoa.
  *
  * YLLÄPITO: nosta CACHE-versionumeroa aina kun julkaiset muutoksen, jotta vanha
- * välimuisti tyhjennetään asennuksen yhteydessä (esim. "tuska-v2").
+ * välimuisti tyhjennetään asennuksen yhteydessä (esim. "tuska-v3").
  */
-const CACHE = "tuska-v1";
+const CACHE = "tuska-v3";
 const ASSETS = [
   "./",
   "./index.html",
-  "./data.json",
+  "./festivals.json",
+  "./data-ruisrock2026.json",
+  "./data-tuska2026.json",
+  "./data-hellsinki2026.json",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
@@ -39,8 +42,8 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
 
-  // data.json: network-first
-  if (url.pathname.endsWith("/data.json")) {
+  // festari-indeksi ja datatiedostot (*.json): network-first
+  if (url.pathname.endsWith(".json")) {
     e.respondWith(
       fetch(req)
         .then((res) => {
