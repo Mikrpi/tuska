@@ -50,6 +50,14 @@ The festival `id` is the stable key used in `?f=` and in `localStorage` — keep
 unique and don't rename it later (renaming orphans saved picks). Remember to add new
 data files to the precache list in `sw.js` (see "Offline / PWA").
 
+The optional `theme` field selects a colour palette. Built-in themes: `steel`
+(dark, cold blue — **default**, lives in `:root`), `blackened` (dark, oxblood) and
+`summer` (light, sea/sand — daylight-readable), the latter two defined as
+`:root[data-theme="…"]` blocks in `index.html`. Omitting `theme` (or naming one with no
+matching block) falls back to `steel`. To add a palette, copy a theme block, rename the
+`data-theme` selector, and adjust the CSS custom properties; selecting that festival
+re-skins the whole app and updates the browser `theme-color`.
+
 ### `data-<id>.json` structure
 
 ```json

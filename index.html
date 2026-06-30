@@ -12,59 +12,100 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Tuska">
   <style>
-    :root { --bg:#0c0e12; --panel:#16191f; --line:#272c34; --accent:#2aa9e0; --pick:#1a3a2a; --pick-border:#2a9d5a; --clash:#5a1a1a; --clash-border:#d24; }
+    /* Teema vaihtuu festarin mukaan: aktiivinen festari asettaa <html data-theme="...">.
+       Värit asuvat täällä (ei datassa); festivals.json kertoo vain teeman nimen.
+       Oletus :root = "steel" (käytetään myös kun festarilla ei ole theme-kenttää).
+       Julistefontti on kondensoitu system-stack (offline-turvallinen, ei verkkohakua). */
+    :root {
+      --font-display: "Arial Narrow", "Roboto Condensed", "Helvetica Neue", system-ui, sans-serif;
+      --bg:#14171A; --surface:#1E2329; --surface2:#262D34; --line:#2C343C;
+      --ink:#E8EDF1; --muted:#95A1AB; --faint:#69737C;
+      --accent:#4FA3C7; --on-accent:#06141B;
+      --pick:#15271E; --pick-border:#3E9E73; --pick-ink:#CFE9DC;
+      --live-bg:#102A33;
+      --clash:#3A1614; --clash-border:#E5655F; --clash-note:#F2A6A1;
+    }
+    :root[data-theme="blackened"] {
+      --bg:#0E0E10; --surface:#17171A; --surface2:#201F22; --line:#2A2622;
+      --ink:#ECE7DE; --muted:#9A938A; --faint:#6E675E;
+      --accent:#B23A36; --on-accent:#FBEFEA;
+      --pick:#16271B; --pick-border:#3E8E5A; --pick-ink:#BFE9CF;
+      --live-bg:#2A1413;
+      --clash:#3A1412; --clash-border:#E5484D; --clash-note:#F5A3A0;
+    }
+    :root[data-theme="summer"] {
+      --bg:#F5EEDD; --surface:#FFFDF6; --surface2:#ECE3CF; --line:#E0D5BC;
+      --ink:#12313B; --muted:#5E6B62; --faint:#8A8170;
+      --accent:#0E6E84; --on-accent:#FFFFFF;
+      --pick:#DCEBDD; --pick-border:#2E8B57; --pick-ink:#1C5A3A;
+      --live-bg:#D8EEF0;
+      --clash:#FBE0D8; --clash-border:#D64430; --clash-note:#B23A1E;
+    }
     * { box-sizing:border-box; }
-    body { background:var(--bg); color:#e7e9ec; font-family:system-ui,-apple-system,sans-serif; margin:0; padding:16px; }
-    h1 { font-size:22px; margin:0 0 4px; }
-    .sub { color:#9aa0a8; font-size:13px; margin-bottom:14px; }
+    body { background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,sans-serif; margin:0; padding:16px; }
+    h1 { font-family:var(--font-display); font-size:30px; font-weight:700; text-transform:uppercase; letter-spacing:.02em; line-height:1; margin:0 0 4px; }
+    .sub { color:var(--muted); font-size:13px; margin-bottom:14px; }
     .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:16px; }
-    button { font-size:14px; padding:8px 12px; background:#222831; color:#e7e9ec; border:1px solid var(--line); border-radius:8px; cursor:pointer; }
-    button.primary { background:var(--accent); border-color:var(--accent); color:#031018; font-weight:bold; }
+    button { font-size:14px; padding:8px 12px; background:var(--surface2); color:var(--ink); border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+    button.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:bold; }
     button:disabled { opacity:.45; cursor:not-allowed; }
-    .fest-select { font-size:14px; padding:8px 12px; background:#222831; color:#e7e9ec; border:1px solid var(--line); border-radius:8px; cursor:pointer; max-width:100%; }
+    .fest-select { font-family:var(--font-display); text-transform:uppercase; letter-spacing:.03em; font-size:15px; padding:8px 12px; background:var(--surface2); color:var(--ink); border:1px solid var(--line); border-radius:8px; cursor:pointer; max-width:100%; }
     .filters { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; align-items:center; }
     .filters:last-of-type { margin-bottom:14px; }
-    .filters button.active { background:var(--accent); border-color:var(--accent); color:#031018; font-weight:bold; }
-    .filters .lbl { color:#8b929c; font-size:12px; margin-right:2px; }
-    .st-inline { color:#8b929c; font-size:11px; font-weight:normal; }
-    .count { color:#9aa0a8; font-size:13px; }
+    .filters button.active { background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:bold; }
+    .filters .lbl { color:var(--muted); font-size:12px; margin-right:2px; }
+    .st-inline { color:var(--muted); font-size:11px; font-weight:normal; }
+    .count { color:var(--muted); font-size:13px; }
     .layout { display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start; }
     .col-days { flex:2 1 520px; min-width:300px; }
     .col-mine { flex:1 1 280px; min-width:260px; position:sticky; top:16px; }
     .day { margin-bottom:22px; }
-    .day h2 { font-size:16px; color:var(--accent); margin:0 0 2px; }
-    .day .gates { color:#777; font-size:12px; margin-bottom:8px; }
+    .day h2 { font-family:var(--font-display); font-size:21px; font-weight:700; text-transform:uppercase; letter-spacing:.02em; color:var(--accent); margin:0 0 2px; }
+    .day .gates { color:var(--faint); font-size:12px; margin-bottom:8px; }
     .stage { margin:10px 0 0; }
-    .stage h3 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#8b929c; margin:0 0 5px; }
+    .stage h3 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 5px; }
     .act { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:7px 10px; border:1px solid var(--line); border-left:4px solid var(--line); border-radius:0 7px 7px 0; margin-bottom:5px; cursor:pointer; user-select:none; }
-    .act:hover { background:#1b1f26; }
+    .act:hover { background:color-mix(in srgb, var(--ink) 7%, transparent); }
     .act.picked { background:var(--pick); border-color:var(--pick-border); border-left-color:var(--pick-border); }
     .act .nm { font-weight:600; }
-    .act .tm { color:#9aa0a8; font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
-    .act.picked .tm { color:#bfe9cf; }
+    .act .tm { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .act.picked .tm { color:var(--pick-ink); }
     .act.past { opacity:.4; }
-    .act.live { background:#10222b; border-color:var(--accent); border-left-color:var(--accent); }
+    .act.live { background:var(--live-bg); border-color:var(--accent); border-left-color:var(--accent); }
     .act.live .tm { color:var(--accent); }
-    .badge-now { display:inline-block; background:var(--accent); color:#031018; font-size:10px; font-weight:bold; padding:1px 5px; border-radius:4px; margin-left:6px; vertical-align:middle; letter-spacing:.04em; }
+    .badge-now { display:inline-block; background:var(--accent); color:var(--on-accent); font-size:10px; font-weight:bold; padding:1px 5px; border-radius:4px; margin-left:6px; vertical-align:middle; letter-spacing:.04em; }
     .pastctrl { margin-bottom:14px; }
     .pastctrl button { font-size:13px; padding:6px 10px; }
-    .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
-    .panel h2 { font-size:15px; margin:0 0 10px; }
+    .panel { background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:14px; }
+    .panel h2 { font-family:var(--font-display); font-size:18px; font-weight:700; text-transform:uppercase; letter-spacing:.02em; margin:0 0 10px; }
     .mine-day { margin-bottom:12px; }
-    .mine-day .d { font-size:12px; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+    .mine-day .d { font-size:12px; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; font-weight:700; }
     .mine-item { display:flex; justify-content:space-between; gap:8px; padding:5px 8px; border-radius:6px; font-size:13px; }
-    .mine-item .tm { color:#9aa0a8; font-variant-numeric:tabular-nums; white-space:nowrap; }
-    .mine-item .st { color:#777; font-size:11px; }
+    .mine-item .tm { color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .mine-item .st { color:var(--faint); font-size:11px; }
     .mine-item.clash { background:var(--clash); outline:1px solid var(--clash-border); }
-    .clash-note { color:#ff9a9a; font-size:11px; margin-top:2px; }
+    .clash-note { color:var(--clash-note); font-size:11px; margin-top:2px; }
     .mine-item.past { opacity:.45; }
-    .mine-item.live { background:#10222b; outline:1px solid var(--accent); }
+    .mine-item.live { background:var(--live-bg); outline:1px solid var(--accent); }
     .mine-item.live .tm { color:var(--accent); }
     .now-line { display:flex; align-items:center; gap:8px; margin:7px 0; color:var(--accent); font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:.06em; }
     .now-line::before, .now-line::after { content:""; height:1px; background:var(--accent); flex:1; opacity:.55; }
-    .empty { color:#777; font-size:13px; }
-    .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--accent); color:#031018; font-weight:bold; padding:10px 16px; border-radius:8px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:70; }
+    .empty { color:var(--faint); font-size:13px; }
+    .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--accent); color:var(--on-accent); font-weight:bold; padding:10px 16px; border-radius:8px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:70; }
     .toast.show { opacity:1; }
+
+    /* Signature: clash-aikajana. Päivän valinnat piirretään palkkeina aika-akselille;
+       päällekkäiset menevät omille riveilleen, jolloin törmäys näkyy yhdellä silmäyksellä. */
+    .clashbar { position:relative; margin:2px 0 9px; }
+    .clashbar .bar { position:absolute; height:18px; border-radius:4px; font-size:10px;
+      line-height:18px; padding:0 5px; overflow:hidden; white-space:nowrap; color:var(--ink);
+      background:color-mix(in srgb, var(--accent) 20%, var(--surface));
+      border:1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); }
+    .clashbar .bar.clash { background:color-mix(in srgb, var(--clash-border) 26%, var(--surface));
+      border-color:var(--clash-border); font-weight:600; }
+    .clashbar .bar.past { opacity:.45; }
+    .clashbar .nowmark { position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--accent); }
+    @media (prefers-reduced-motion: reduce) { .toast { transition:none; } }
 
     /* Mobiili: alapalkin välilehdet (Schedule / My timetable) ja kelluva "Now"-
        pikanappi. Työpöydällä piilossa, jolloin molemmat palstat näkyvät rinnakkain. */
@@ -78,14 +119,14 @@
       .mine-item { padding:9px 10px; font-size:14px; }
       .toast { bottom:84px; }
       .tabbar { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:60;
-        background:var(--panel); border-top:1px solid var(--line); }
+        background:var(--surface); border-top:1px solid var(--line); }
       .tabbar button { flex:1; border:none; border-radius:0; background:none;
-        color:#9aa0a8; font-size:13px; font-weight:600; padding:13px 8px; }
+        color:var(--muted); font-size:13px; font-weight:600; padding:13px 8px; }
       .tabbar button.active { color:var(--accent); box-shadow:inset 0 2px 0 var(--accent); }
       body.tab-schedule .col-mine { display:none; }
       body.tab-mine .col-days { display:none; }
       .fab { display:block; position:fixed; right:14px; bottom:60px; z-index:65;
-        background:var(--accent); color:#031018; font-weight:bold; border:none;
+        background:var(--accent); color:var(--on-accent); font-weight:bold; border:none;
         border-radius:22px; padding:11px 17px; box-shadow:0 3px 12px rgba(0,0,0,.45); }
       .fab[hidden] { display:none; }
     }
@@ -464,6 +505,9 @@
       dEl.className = "mine-day";
       dEl.innerHTML = `<div class="d">${day.label}</div>`;
       const isCurrent = dayStatus(day, now) === "current";
+      // Signature: päivän valintojen aikajana (näyttää törmäykset palkkeina).
+      const tl = clashTimeline(day, acts, clash, now, isCurrent);
+      if (tl) dEl.appendChild(tl);
       let nowLineDone = false;
       for (const a of acts) {
         const st = actStatus(a, now);
@@ -513,6 +557,54 @@
     return el;
   }
 
+  // Signature: päivän valinnat aika-akselilla. Päällekkäiset menevät omille
+  // riveilleen (greedy lane -jako), joten törmäys näkyy konkreettisesti palkkien
+  // limittäisyytenä. Käytetään eveMin-arvoja, jotta keskiyön yli menevät osuvat oikein.
+  function clashTimeline(day, acts, clash, now, isCurrent) {
+    if (acts.length < 2) return null; // aikajana tuo lisäarvoa vasta useammalla valinnalla
+    const items = acts.map((a) => ({ a, s: eveMin(a.start), e: eveMin(a.end) }))
+      .sort((x, y) => x.s - y.s);
+    const min = Math.min(...items.map((i) => i.s));
+    const max = Math.max(...items.map((i) => i.e));
+    const span = max - min;
+    if (span <= 0) return null;
+
+    const laneEnds = []; // kunkin rivin viimeisin loppuaika
+    for (const it of items) {
+      let lane = laneEnds.findIndex((end) => end <= it.s);
+      if (lane === -1) { lane = laneEnds.length; laneEnds.push(it.e); }
+      else laneEnds[lane] = it.e;
+      it.lane = lane;
+    }
+
+    const rowH = 22;
+    const wrap = document.createElement("div");
+    wrap.className = "clashbar";
+    wrap.style.height = (laneEnds.length * rowH - 4) + "px";
+    for (const it of items) {
+      const st = actStatus(it.a, now);
+      const bar = document.createElement("div");
+      bar.className = "bar" + (clash.has(it.a.id) ? " clash" : "") + (st === "past" ? " past" : "");
+      bar.style.left = ((it.s - min) / span * 100) + "%";
+      bar.style.width = Math.max((it.e - it.s) / span * 100, 4) + "%";
+      bar.style.top = (it.lane * rowH) + "px";
+      bar.textContent = it.a.name;
+      bar.title = `${it.a.name} · ${it.a.start}–${it.a.end} · ${it.a.stage}`;
+      wrap.appendChild(bar);
+    }
+    if (isCurrent) {
+      // now suhteessa päivän kalenteripäivään: minuutit dayDate-keskiyöstä vastaavat eveMin-asteikkoa.
+      const nowPos = (now - dayDate(day)) / 60000;
+      if (nowPos >= min && nowPos <= max) {
+        const m = document.createElement("div");
+        m.className = "nowmark";
+        m.style.left = ((nowPos - min) / span * 100) + "%";
+        wrap.appendChild(m);
+      }
+    }
+    return wrap;
+  }
+
   function toast(msg) {
     const t = $("toast");
     t.textContent = msg;
@@ -560,6 +652,15 @@
     try { localStorage.setItem("festival-active", id); } catch (e) { /* privaattitila */ }
   }
 
+  // Asettaa aktiivisen festarin teeman (palette vaihtuu CSS-muuttujien kautta) ja
+  // päivittää selaimen/PWA:n theme-color-värin taustan mukaan.
+  function applyTheme(name) {
+    document.documentElement.dataset.theme = name || "steel";
+    const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta && bg) meta.setAttribute("content", bg);
+  }
+
   // Rakentaa osoitteen jossa ?f=<id> on asetettu mutta muut query-parametrit
   // (esim. testaukseen tarkoitettu ?now=) säilyvät. keepHash=false pudottaa
   // valinnat (#s=...), mitä käytetään festaria vaihdettaessa.
@@ -601,6 +702,7 @@
     activeFestival = chooseFestival();
     rememberFestival(activeFestival);
     const fest = FESTIVALS.find((f) => f.id === activeFestival);
+    applyTheme(fest.theme);
 
     // Varmista että ?f= on URL:ssa (jotta jaettu linkki ja syncUrl säilyttävät sen).
     if (festivalParam() !== activeFestival) {

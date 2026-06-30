@@ -1,7 +1,7 @@
 {
   "festivals": [
-    { "id": "ruisrock2026", "name": "Ruisrock 2026", "data": "data-ruisrock2026.json" },
-    { "id": "hellsinki2026", "name": "Hellsinki Metal Festival 2026", "data": "data-hellsinki2026.json" },
-    { "id": "tuska2026", "name": "Tuska 2026", "data": "data-tuska2026.json" }
+    { "id": "ruisrock2026", "name": "Ruisrock 2026", "data": "data-ruisrock2026.json", "theme": "summer" },
+    { "id": "hellsinki2026", "name": "Hellsinki Metal Festival 2026", "data": "data-hellsinki2026.json", "theme": "steel" },
+    { "id": "tuska2026", "name": "Tuska 2026", "data": "data-tuska2026.json", "theme": "blackened" }
   ]
 }
