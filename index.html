@@ -719,7 +719,12 @@
     // Kirjoittaa hashin (jaettavaksi) ja varmuuskopion riippumatta lähteestä.
     syncUrl();
     $("shareBtn").onclick = share;
-    $("clearBtn").onclick = () => { selected.clear(); syncUrl(); render(); };
+    $("clearBtn").onclick = () => {
+      if (!selected.size) return;
+      const n = selected.size;
+      if (!confirm(`Clear all ${n} selected artist${n === 1 ? "" : "s"}?`)) return;
+      selected.clear(); syncUrl(); render();
+    };
     $("tabSchedule").onclick = () => setTab("schedule");
     $("tabMine").onclick = () => setTab("mine");
     $("nowFab").onclick = jumpToNow;
