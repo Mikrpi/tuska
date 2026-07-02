@@ -145,6 +145,7 @@
       .col-mine { position:static; top:auto; }
       .act { padding:11px 12px; }       /* isompi kosketuskohta peukalolle */
       .mine-item { padding:9px 10px; font-size:14px; }
+      #searchBox { flex-basis:100%; max-width:100%; } /* koko rivin levyinen hakukenttä */
       .toast { bottom:84px; }
       .tabbar { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:60;
         background:var(--surface); border-top:1px solid var(--line); }
@@ -181,12 +182,14 @@
     <button id="compareClose">Done comparing</button>
   </div>
 
+  <div class="filters" id="filters"></div>
+  <div class="filters" id="viewmode"></div>
+  <!-- Haku alimpana ohjaimista: tulokset alkavat heti kentän alta (tärkeää
+       etenkin mobiilissa, jossa näppäimistö vie puolet ruudusta). -->
   <div class="filters">
     <input id="searchBox" class="txt-input" type="search"
            placeholder="Search artists…" aria-label="Search artists by name">
   </div>
-  <div class="filters" id="filters"></div>
-  <div class="filters" id="viewmode"></div>
 
   <div class="layout">
     <div class="col-days" id="days"></div>
