@@ -142,6 +142,41 @@
     .clashbar .nowmark { position:absolute; top:-2px; bottom:-2px; width:2px; background:var(--accent); }
     @media (prefers-reduced-motion: reduce) { .toast { transition:none; } }
 
+    /* Ruudukkonäkymä: lavat sarakkeina, aika riveinä — klassinen festariaikataulu.
+       Vain leveälle näytölle; kapealla Grid-nappi on piilossa (ks. media query). */
+    .grid { display:grid; gap:0 6px; margin-top:6px; }
+    .ghead { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+      color:var(--muted); padding:2px 4px 7px; text-align:center; overflow:hidden;
+      text-overflow:ellipsis; white-space:nowrap; }
+    .ggutter { position:relative; }
+    .ghour { position:absolute; right:6px; transform:translateY(-50%); font-size:10px;
+      color:var(--faint); font-variant-numeric:tabular-nums; }
+    .gcol { position:relative; border-top:1px solid var(--line); }
+    .gline { position:absolute; left:0; right:0; height:1px; background:var(--line); opacity:.5; }
+    .gact { position:absolute; left:0; right:0; border:1px solid var(--line);
+      border-left:4px solid var(--line); border-radius:0 7px 7px 0; padding:3px 7px;
+      overflow:hidden; cursor:pointer; user-select:none; background:var(--surface); z-index:1; }
+    .gact:hover { background:color-mix(in srgb, var(--ink) 7%, var(--surface)); }
+    .gact:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+    .gact .nm { display:block; font-weight:600; font-size:12px; overflow:hidden;
+      text-overflow:ellipsis; white-space:nowrap; }
+    .gact .tm { color:var(--muted); font-size:10px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .gact.picked { background:var(--pick); border-color:var(--pick-border); border-left-color:var(--pick-border); }
+    .gact.picked .tm { color:var(--pick-ink); }
+    .gact.picked.clash { background:var(--clash); border-color:var(--clash-border); border-left-color:var(--clash-border); }
+    .gact.picked.clash .tm { color:var(--clash-note); }
+    .gact.past { opacity:.4; }
+    .gact.live { background:var(--live-bg); border-color:var(--accent); border-left-color:var(--accent); }
+    .gact.live .tm { color:var(--accent); }
+    .gact.friendpick { outline:1.5px dashed var(--accent); outline-offset:-1px; }
+    .gnow { position:absolute; left:0; right:0; height:2px; background:var(--accent); z-index:2; pointer-events:none; }
+
+    /* Käyttöohjedialogi: sama modal-runko kuin QR:llä, mutta vasemmalle tasattu teksti. */
+    .modal-box.help { text-align:left; max-width:460px; max-height:85vh; overflow:auto; }
+    .modal-box.help h2 { text-align:center; }
+    .help-body p { font-size:13px; line-height:1.55; margin:0 0 10px; }
+    .modal-box.help button { display:block; margin:14px auto 0; }
+
     /* Mobiili: alapalkin välilehdet (Schedule / My timetable) ja kelluva "Now"-
        pikanappi. Työpöydällä piilossa, jolloin molemmat palstat näkyvät rinnakkain. */
     .tabbar { display:none; }
@@ -171,6 +206,9 @@
         background:var(--accent); color:var(--on-accent); font-weight:bold; border:none;
         border-radius:22px; padding:11px 17px; box-shadow:0 3px 12px rgba(0,0,0,.45); }
       .fab[hidden] { display:none; }
+      /* Ruudukkonäkymä on työpöytäominaisuus: 3–5 lavasaraketta ei mahdu
+         luettavasti kapealle ruudulle, joten nappi piilotetaan. */
+      #viewmode .grid-only { display:none; }
     }
   </style>
 </head>
@@ -185,6 +223,7 @@
     <button id="shareBtn" class="primary">Copy share link</button>
     <button id="qrBtn" aria-label="Show share link as a QR code">QR</button>
     <button id="clearBtn">Clear all</button>
+    <button id="helpBtn" aria-label="Help — how to use">?</button>
     <span class="count" id="count"></span>
   </div>
 
@@ -226,6 +265,31 @@
       <canvas id="qrCanvas" aria-label="QR code of your schedule link"></canvas>
       <div class="qr-url" id="qrUrl"></div>
       <button id="qrClose" class="primary">Close</button>
+    </div>
+  </div>
+
+  <!-- Käyttöohje: lyhyt "How to use" -dialogi. Sisältö on staattista, luotettua
+       tekstiä (ei käyttäjäsyötettä), joten se voi olla suoraan markupissa. -->
+  <div class="modal" id="helpModal" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal-box help">
+      <h2 id="helpTitle">How to use</h2>
+      <div class="help-body">
+        <p><strong>Pick artists</strong> by tapping them in the schedule. They appear in
+        My timetable, and picks that overlap in time are marked with ⚠.</p>
+        <p><strong>Your link is your save.</strong> The selection lives in the page
+        address: “Copy share link” (or the QR button) gives a link that both stores
+        your schedule and shares it. You can name the schedule — the name travels
+        with the link.</p>
+        <p><strong>Compare with a friend:</strong> opening their link shows their picks
+        dashed alongside yours. Nothing is overwritten unless you tap “Use these picks”.</p>
+        <p><strong>Add to calendar (.ics)</strong> in My timetable exports your picks
+        to your phone's calendar.</p>
+        <p><strong>Works offline:</strong> once opened, the app works without signal —
+        add it to your home screen before heading to the festival. Past days hide
+        automatically, artists on stage right now get a NOW badge, and on a phone the
+        ● Now button jumps to what's playing.</p>
+      </div>
+      <button id="helpClose" class="primary">Close</button>
     </div>
   </div>
 
@@ -427,9 +491,10 @@
     else selected.add(id);
     syncUrl();
     render();
-    // render() rakentaa rivit uudelleen -> palauta näppäimistöfokus samaan riviin.
+    // render() rakentaa rivit uudelleen -> palauta näppäimistöfokus samaan
+    // elementtiin (listarivi tai ruudukkonäkymän lohko).
     if (refocus) {
-      const el = document.querySelector(`.act[data-id="${id}"]`);
+      const el = document.querySelector(`.act[data-id="${id}"], .gact[data-id="${id}"]`);
       if (el) el.focus();
     }
   }
@@ -597,10 +662,11 @@
     lbl.className = "lbl";
     lbl.textContent = "View:";
     vwrap.appendChild(lbl);
-    for (const o of [{ id: "stage", label: "By stage" }, { id: "time", label: "By time" }]) {
+    for (const o of [{ id: "stage", label: "By stage" }, { id: "time", label: "By time" }, { id: "grid", label: "Grid" }]) {
       const b = document.createElement("button");
       b.textContent = o.label;
-      if (viewMode === o.id) b.className = "active";
+      if (o.id === "grid") b.classList.add("grid-only"); // piilossa kapealla näytöllä (CSS)
+      if (viewMode === o.id) b.classList.add("active");
       b.setAttribute("aria-pressed", viewMode === o.id ? "true" : "false");
       b.onclick = () => { viewMode = o.id; render(); };
       vwrap.appendChild(b);
@@ -623,8 +689,14 @@
     const badge = st === "live" ? ` <span class="badge-now">NOW</span>` : "";
     const warn = clashing ? "⚠ " : "";
     el.innerHTML = `<span class="nm">${esc(a.name)}${stage}${badge}</span><span class="tm">${warn}${a.start}–${a.end}</span>`;
-    // Saavutettavuus: rivi on vaihtopainike myös näppäimistölle ja ruudunlukijalle
-    // (pelkkä div + onclick ei ole kummankaan tavoitettavissa).
+    wireActToggle(el, a, st, clashing, friend);
+    return el;
+  }
+
+  // Saavutettavuus: valintaelementti (listarivi tai grid-lohko) on vaihtopainike
+  // myös näppäimistölle ja ruudunlukijalle (pelkkä div + onclick ei ole
+  // kummankaan tavoitettavissa). Jaettu, jotta näkymät eivät ajaudu erilleen.
+  function wireActToggle(el, a, st, clashing, friend) {
     el.setAttribute("role", "button");
     el.tabIndex = 0;
     el.setAttribute("aria-pressed", selected.has(a.id) ? "true" : "false");
@@ -636,7 +708,6 @@
     el.onkeydown = (ev) => {
       if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggle(a.id, true); }
     };
-    return el;
   }
 
   // Jaettu "Show/Hide past days" -nappi. Sama showPast-tila ohjaa molempia näkymiä,
@@ -653,12 +724,111 @@
     return ctrl;
   }
 
+  // --- Ruudukkonäkymä: lavat sarakkeina, aika riveinä ---
+  // Klassinen festariaikatauluesitys. Sama vuorokausilogiikka kuin muuallakin:
+  // eveMin sijoittaa aamuyön keikat (ennen klo 12) illan jatkoksi.
+
+  const GRID_PX_PER_MIN = 1.3; // 10 h päivä ≈ 780 px — lohkoihin mahtuu nimi + aika
+
+  function gridAct(it, min, now, clash) {
+    const a = it.a;
+    const st = actStatus(a, now);
+    const friend = compare && compare.picks.has(a.id);
+    const clashing = selected.has(a.id) && clash.has(a.id);
+    const el = document.createElement("div");
+    el.className = "gact" + (selected.has(a.id) ? " picked" : "") +
+      (clashing ? " clash" : "") +
+      (friend ? " friendpick" : "") +
+      (st === "past" ? " past" : st === "live" ? " live" : "");
+    el.dataset.id = a.id;
+    el.style.top = ((it.s - min) * GRID_PX_PER_MIN) + "px";
+    el.style.height = Math.max((it.e - it.s) * GRID_PX_PER_MIN - 3, 18) + "px";
+    el.innerHTML = `<span class="nm">${esc(a.name)}</span>` +
+      `<span class="tm">${clashing ? "⚠ " : ""}${a.start}–${a.end}` +
+      (st === "live" ? ` <span class="badge-now">NOW</span>` : "") + `</span>`;
+    wireActToggle(el, a, st, clashing, friend);
+    return el;
+  }
+
+  function dayGrid(day, dayActs, now, clash, isCurrent) {
+    const stages = DATA.stages.filter((s) => dayActs.some((a) => a.stage === s));
+    const items = dayActs.map((a) => ({ a, s: eveMin(a.start), e: eveMin(a.end) }));
+    // Aika-akseli tasatunneille pyöristettynä, jotta tuntileimat ovat siistit.
+    const min = Math.floor(Math.min(...items.map((i) => i.s)) / 60) * 60;
+    const max = Math.ceil(Math.max(...items.map((i) => i.e)) / 60) * 60;
+    const height = (max - min) * GRID_PX_PER_MIN;
+
+    const wrap = document.createElement("div");
+    wrap.className = "grid";
+    wrap.style.gridTemplateColumns = `34px repeat(${stages.length}, 1fr)`;
+
+    // Otsikkorivi: tyhjä kulma + lavojen nimet.
+    wrap.appendChild(document.createElement("div"));
+    for (const s of stages) {
+      const h = document.createElement("div");
+      h.className = "ghead";
+      h.textContent = s;
+      h.title = s; // koko nimi, jos sarake katkaisee sen
+      wrap.appendChild(h);
+    }
+
+    // "Nyt"-viiva piirretään joka sarakkeeseen samaan kohtaan -> yhtenäinen
+    // viiva ruudukon yli (sarakkeet ovat vierekkäin).
+    const nowPos = (now - dayDate(day)) / 60000;
+    const nowTop = (isCurrent && nowPos >= min && nowPos <= max)
+      ? ((nowPos - min) * GRID_PX_PER_MIN) + "px" : null;
+    const nowMark = () => {
+      const m = document.createElement("div");
+      m.className = "gnow";
+      m.style.top = nowTop;
+      return m;
+    };
+
+    // Aikasarake: tuntileimat.
+    const gutter = document.createElement("div");
+    gutter.className = "ggutter";
+    gutter.style.height = height + "px";
+    for (let t = min; t <= max; t += 60) {
+      const lbl = document.createElement("div");
+      lbl.className = "ghour";
+      lbl.style.top = ((t - min) * GRID_PX_PER_MIN) + "px";
+      lbl.textContent = String(Math.floor(t / 60) % 24).padStart(2, "0");
+      gutter.appendChild(lbl);
+    }
+    if (nowTop) gutter.appendChild(nowMark());
+    wrap.appendChild(gutter);
+
+    // Lavasarakkeet: tuntiviivat + keikkalohkot. Saman lavan päällekkäisyydet
+    // ovat datavirhe (validaattori estää), joten lane-jakoa ei tarvita.
+    for (const s of stages) {
+      const col = document.createElement("div");
+      col.className = "gcol";
+      col.style.height = height + "px";
+      for (let t = min + 60; t < max; t += 60) {
+        const ln = document.createElement("div");
+        ln.className = "gline";
+        ln.style.top = ((t - min) * GRID_PX_PER_MIN) + "px";
+        col.appendChild(ln);
+      }
+      for (const it of items) {
+        if (it.a.stage === s) col.appendChild(gridAct(it, min, now, clash));
+      }
+      if (nowTop) col.appendChild(nowMark());
+      wrap.appendChild(col);
+    }
+    return wrap;
+  }
+
   function renderDays(clash) {
     const wrap = $("days");
     wrap.innerHTML = "";
     const now = nowDate();
     const allPast = eventAllPast(now);
     const searching = !!searchQuery;
+    // Grid on työpöytänäkymä: kapealla ruudulla (jossa Grid-nappi on piilossa)
+    // tallennettu grid-valinta pudotetaan lavajaotteluun, ei tyhjään näkymään.
+    const mode = (viewMode === "grid" && window.matchMedia("(max-width: 640px)").matches)
+      ? "stage" : viewMode;
 
     // "Näytä menneet päivät" -nappi vain kun selataan kaikkia päiviä ja menneitä
     // päiviä on olemassa. Jos koko tapahtuma on ohi, nappia ei näytetä (kaikki
@@ -682,11 +852,13 @@
       if (dayStatus(day, now) === "current") dEl.id = "today-anchor"; // "Now"-napin kohde
       dEl.innerHTML = `<h2>${day.label}</h2><div class="gates">Gates ${day.gatesOpen}–${day.gatesClose}</div>`;
 
-      if (viewMode === "time") {
+      if (mode === "time") {
         // Aikajärjestys lavasta riippumatta; lava näkyy nimen perässä.
         const acts = dayActs.slice()
           .sort((a, b) => eveMin(a.start) - eveMin(b.start) || a.stage.localeCompare(b.stage));
         for (const a of acts) dEl.appendChild(actRow(a, true, now, clash));
+      } else if (mode === "grid") {
+        dEl.appendChild(dayGrid(day, dayActs, now, clash, dayStatus(day, now) === "current"));
       } else {
         // Lavajaottelu.
         for (const stage of DATA.stages) {
@@ -1116,9 +1288,18 @@
     $("qrBtn").onclick = showQr;
     $("qrClose").onclick = () => { $("qrModal").hidden = true; };
     $("qrModal").onclick = (e) => { if (e.target === $("qrModal")) $("qrModal").hidden = true; };
+    $("helpBtn").onclick = () => { $("helpModal").hidden = false; $("helpClose").focus(); };
+    $("helpClose").onclick = () => { $("helpModal").hidden = true; $("helpBtn").focus(); };
+    $("helpModal").onclick = (e) => { if (e.target === $("helpModal")) $("helpModal").hidden = true; };
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !$("qrModal").hidden) $("qrModal").hidden = true;
+      if (e.key !== "Escape") return;
+      if (!$("qrModal").hidden) $("qrModal").hidden = true;
+      if (!$("helpModal").hidden) { $("helpModal").hidden = true; $("helpBtn").focus(); }
     });
+    // Grid-näkymä putoaa kapealla ruudulla lavajaotteluun — renderöidään
+    // uudelleen kun leveysraja ylittyy (esim. puhelimen kääntö, ikkunan venytys).
+    const mq = window.matchMedia("(max-width: 640px)");
+    if (mq.addEventListener) mq.addEventListener("change", render);
     $("shareBtn").onclick = share;
     $("clearBtn").onclick = () => {
       if (!selected.size) return;

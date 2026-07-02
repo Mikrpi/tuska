@@ -183,6 +183,12 @@ screens both columns show side by side as before. Sharing uses the native share 
 (`navigator.share`) when available, falling back to clipboard. These are CSS/JS view
 behaviors only — they don't affect the festival data or the shared link format.
 
+The third schedule view, **Grid** (stages as columns, time as rows), is
+desktop-only: on narrow screens its button is hidden and a saved grid preference
+falls back to the "By stage" view. The **"?" help button** in the toolbar opens a
+short in-app how-to dialog; its content is static, trusted markup in `index.html`
+(see the security note before adding any user-carried text to it).
+
 ### Testing at a different point in time
 
 Add `?now=` and an ISO timestamp to the URL to see how the app looks at any moment:

@@ -65,6 +65,20 @@ valmistuu tai järjestys muuttuu.
   poistuneet). Ajaa lopuksi validate-data.js:n. Testit: `tests/import.test.js`
   (CI:ssä).
 
+### Ruudukkonäkymä, käyttöohje ja README
+
+- [x] **6. Ruudukkonäkymä** — kolmas näkymä (Grid): lavat sarakkeina, aika
+  riveinä, keikat aikajanalle sijoitettuina lohkoina; valinta, törmäys-,
+  live- ja vertailumerkinnät sekä "nyt"-viiva kuten muissakin näkymissä.
+  Vain leveille näytöille — kapealla nappi on piilossa ja tallennettu
+  grid-valinta putoaa lavajaotteluun.
+- [x] **Käyttöohje loppukäyttäjille** — ?-nappi työkalupalkissa avaa
+  "How to use" -dialogin (valinta, linkki tallenteena, vertailu, ICS,
+  offline). Staattista sisältöä index.html:ssä, kulkee PWA:n mukana offline.
+- [x] **README.md** — esittely, ominaisuudet ja linkit PITCH.md:hen,
+  ROADMAP.md:hen ja MAINTENANCE.md:hen; PITCH.md tuotu samalla
+  versionhallintaan.
+
 ## Tekemättä: ylläpidon helpottaminen
 
 - [ ] **Cache-version automaattinen leimaus** — workflow stampaa versionumeron
@@ -72,8 +86,6 @@ valmistuu tai järjestys muuttuu.
   pois. Kevyempi vaihtoehto (CI-varoitus) on jo tehty.
 - [ ] **sw.js:n ASSETS-listan generointi festivals.jsonista** SW:n
   install-vaiheessa — yksi käsin synkattava lista vähemmän.
-- [ ] **README.md** — lyhyt esittely ja linkit MAINTENANCE.md:hen ja
-  PITCH.md:hen. (Huom: PITCH.md on yhä versionhallinnan ulkopuolella.)
 - [ ] **Siivous:** `/workspace/Tuska-copy` (repon ulkopuolinen vanha kopio)
   poistettavaksi, jos ei enää tarpeen.
 
@@ -81,9 +93,8 @@ valmistuu tai järjestys muuttuu.
 
 - [ ] **3. PWA-päivitysilmoitus** — "Uusi versio saatavilla" -toast, kun uusi
   service worker on asentunut.
-- [ ] **4. Lavasuodatin** päiväsuodattimen rinnalle.
-- [ ] **6. Ruudukkonäkymä** — klassinen festariaikataulu (lavat sarakkeina,
-  aika riveinä) kolmanneksi näkymäksi; clashbar-aikajana on jo puoliksi tätä.
+- [ ] **4. Lavasuodatin** päiväsuodattimen rinnalle. (Arvo pienentynyt:
+  By stage -ryhmittely ja haku kattavat suurimman osan tarpeesta.)
 - [ ] **8. FI/EN-kielivalinta** — käyttöliittymä on nyt englanniksi, vaikka
   festarit ovat suomalaisia.
 - [ ] **10. Artistilinkit** (Spotify/YouTube-haku tms.) datan valinnaisena
