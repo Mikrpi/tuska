@@ -523,7 +523,9 @@
   }
 
   // Mobiilin välilehden vaihto: ohjaa body-luokalla kumpi palsta näkyy.
-  function setTab(tab) {
+  // scroll=true (käyttäjän napautus) vierittää uuden näkymän alkuun — pitkälle
+  // selattu sijainti edellisessä näkymässä ei ole mielekäs toisessa.
+  function setTab(tab, scroll) {
     mobileTab = tab;
     document.body.classList.toggle("tab-schedule", tab === "schedule");
     document.body.classList.toggle("tab-mine", tab === "mine");
@@ -531,6 +533,16 @@
     $("tabMine").classList.toggle("active", tab === "mine");
     $("tabSchedule").setAttribute("aria-pressed", tab === "schedule" ? "true" : "false");
     $("tabMine").setAttribute("aria-pressed", tab === "mine" ? "true" : "false");
+    if (scroll) {
+      if (tab === "mine") {
+        // Suoraan My timetable -paneelin alkuun.
+        const p = document.querySelector(".col-mine");
+        if (p) p.scrollIntoView({ block: "start" });
+      } else {
+        // Aikataulunäkymässä alkuun, jolloin suodattimet ja haku ovat esillä.
+        window.scrollTo(0, 0);
+      }
+    }
   }
 
   // "Now"-pikanappi: tuo kuluvan päivän näkyviin ja vierittää nykyhetkeen.
@@ -1102,8 +1114,8 @@
       if (!confirm(`Clear all ${n} selected artist${n === 1 ? "" : "s"}?`)) return;
       selected.clear(); syncUrl(); render();
     };
-    $("tabSchedule").onclick = () => setTab("schedule");
-    $("tabMine").onclick = () => setTab("mine");
+    $("tabSchedule").onclick = () => setTab("schedule", true);
+    $("tabMine").onclick = () => setTab("mine", true);
     $("nowFab").onclick = jumpToNow;
     setTab(mobileTab);
     // Hashin vaihtuminen (jaettu linkki liitettynä jo auki olevan sivun
