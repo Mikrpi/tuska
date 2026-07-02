@@ -5,6 +5,8 @@ No backend, no database, no login. The app supports **multiple festivals**, chos
 from a dropdown and remembered in the URL (`?f=<id>`). The core files are:
 
 - `index.html` — UI + logic (HTML, CSS and JS all in one file)
+- `qr.js` — small in-house QR code generator for the share dialog (offline, no CDN;
+  verified by `tests/qr.test.js`, which decodes its output back independently)
 - `festivals.json` — the registry of available festivals (`id`, `name`, `data` path)
 - `data-<id>.json` — one line-up file per festival (the files you update each year)
 
@@ -30,9 +32,20 @@ localStorage backups from older versions) are still accepted without the check.
 When you switch festivals from the dropdown the app reloads to `?f=<new>` **without**
 the hash, then restores that festival's own saved picks.
 
+The hash can also carry an optional **schedule name** (`&n=<url-encoded name>`,
+e.g. `#s=60.QQAI…&n=Mikon%20lauantai`) — free-form user text, see the security
+note below. The name is stored per festival in `localStorage`
+(`festival-name:<id>`) and shown in the share sheet, the QR dialog and the
+compare bar.
+
 Opening a **shared link never silently overwrites your own saved picks**: if the
-link's selection differs from the localStorage backup, the app asks which one to
-keep (a link with an empty selection is ignored in favor of your own).
+link's selection differs from the localStorage backup, the app opens **compare
+mode** — your picks stay active, the friend's picks are shown alongside (dashed
+in the schedule, tagged `friend`/`both` in My timetable) until you press "Use
+these picks" or "Done comparing". Compare mode lives in memory only: the URL is
+immediately rewritten to your own selection, so sharing or reloading during a
+comparison uses your picks. A link with an empty selection is ignored in favor
+of your own.
 
 ---
 
@@ -172,16 +185,19 @@ parameter, the browser's real clock is used.
 
 ## Security note (read before adding new features)
 
-Currently the app only renders **trusted** data (`festivals.json` and the
-`data-<id>.json` files), so the `innerHTML` template literals are safe. Act and stage
-names are additionally passed through an `esc()` HTML-escaper — both as defence in depth
-and so that legitimate special characters render literally (e.g. `Pitch & Match`,
-`I <3 Ibiza`).
+The `innerHTML` template literals only render **trusted** data (`festivals.json` and
+the `data-<id>.json` files). Act and stage names are additionally passed through an
+`esc()` HTML-escaper — both as defence in depth and so that legitimate special
+characters render literally (e.g. `Pitch & Match`, `I <3 Ibiza`).
 
-If you later add **free-form user text** (e.g. a field to name the schedule that is
-stored in the URL and travels with the shared link), it **MUST NOT** be inserted into
-`innerHTML` as-is — use `textContent` or escape it. Otherwise you create a reflected
-XSS: a malicious link could execute code in the browser of whoever opens it.
+The app **does** carry one piece of free-form user text: the **schedule name**
+(`&n=` in the URL hash, the `#schedName` input). It is deliberately only ever
+rendered via `textContent` (compare bar, toast, QR dialog title) or as an input
+`value` — **never via `innerHTML`**. Keep it that way, and treat any new
+user-text feature the same: inserting URL-carried text into `innerHTML` creates a
+reflected XSS where a malicious link executes code in the browser of whoever opens
+it. In compare mode the friend/both badges are fixed words for the same reason —
+do not "improve" them by injecting the friend's name into the list markup.
 `document.title = text`, on the other hand, is safe (the title does not execute code).
 
 The risk on this static page is low (no cookies, no backend), but it rises

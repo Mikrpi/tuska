@@ -50,6 +50,10 @@
     button.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:bold; }
     button:disabled { opacity:.45; cursor:not-allowed; }
     .fest-select { font-family:var(--font-display); text-transform:uppercase; letter-spacing:.03em; font-size:15px; padding:8px 12px; background:var(--surface2); color:var(--ink); border:1px solid var(--line); border-radius:8px; cursor:pointer; max-width:100%; }
+    .txt-input { font-size:14px; padding:8px 12px; background:var(--surface2); color:var(--ink); border:1px solid var(--line); border-radius:8px; }
+    .txt-input::placeholder { color:var(--faint); }
+    #schedName { flex:0 1 190px; min-width:130px; }
+    #searchBox { flex:1 1 200px; max-width:320px; }
     .filters { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; align-items:center; }
     .filters:last-of-type { margin-bottom:14px; }
     .filters button.active { background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:bold; }
@@ -89,6 +93,25 @@
     .mine-item.past { opacity:.45; }
     .mine-item.live { background:var(--live-bg); outline:1px solid var(--accent); }
     .mine-item.live .tm { color:var(--accent); }
+    /* Kaverivertailu: kaverin valinnat katkoviivalla, yhteiset korostettuna. */
+    .comparebar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:var(--live-bg); border:1px solid var(--accent); border-radius:10px; padding:10px 12px; margin-bottom:14px; font-size:13px; }
+    .comparebar .txt { flex:1 1 220px; }
+    .comparebar button { font-size:13px; padding:6px 10px; }
+    .act.friendpick { outline:1.5px dashed var(--accent); outline-offset:-1px; }
+    .mine-item.friend { opacity:.8; outline:1px dashed var(--accent); }
+    .mine-item.both { background:var(--pick); }
+    .tag { display:inline-block; font-size:10px; font-weight:bold; padding:1px 5px; border-radius:4px; margin-left:6px; vertical-align:middle; letter-spacing:.04em; }
+    .tag.both { background:var(--pick-border); color:var(--on-accent); }
+    .tag.friend { border:1px dashed var(--accent); color:var(--accent); }
+    .panel-actions { margin-top:10px; }
+    .panel-actions button { font-size:13px; padding:6px 10px; }
+    /* QR-jakoikkuna */
+    .modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:80; padding:16px; }
+    .modal[hidden] { display:none; }
+    .modal-box { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:20px; text-align:center; max-width:340px; width:100%; }
+    .modal-box h2 { font-family:var(--font-display); font-size:18px; font-weight:700; text-transform:uppercase; letter-spacing:.02em; margin:0 0 12px; overflow-wrap:anywhere; }
+    .modal-box canvas { width:100%; max-width:260px; image-rendering:pixelated; border-radius:8px; }
+    .qr-url { color:var(--muted); font-size:11px; word-break:break-all; margin:10px 0 14px; }
     .now-line { display:flex; align-items:center; gap:8px; margin:7px 0; color:var(--accent); font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:.06em; }
     .now-line::before, .now-line::after { content:""; height:1px; background:var(--accent); flex:1; opacity:.55; }
     .empty { color:var(--faint); font-size:13px; }
@@ -139,11 +162,25 @@
 
   <div class="toolbar">
     <select id="festivalSelect" class="fest-select" aria-label="Choose festival"></select>
+    <input id="schedName" class="txt-input" type="text" maxlength="40"
+           placeholder="Name your schedule" aria-label="Schedule name (travels with the shared link)">
     <button id="shareBtn" class="primary">Copy share link</button>
+    <button id="qrBtn" aria-label="Show share link as a QR code">QR</button>
     <button id="clearBtn">Clear all</button>
     <span class="count" id="count"></span>
   </div>
 
+  <!-- Kaverivertailu: näkyy kun avattu jaettu linkki eroaa omista valinnoista. -->
+  <div class="comparebar" id="compareBar" hidden>
+    <span class="txt" id="compareText"></span>
+    <button id="adoptBtn">Use these picks</button>
+    <button id="compareClose">Done comparing</button>
+  </div>
+
+  <div class="filters">
+    <input id="searchBox" class="txt-input" type="search"
+           placeholder="Search artists…" aria-label="Search artists by name">
+  </div>
   <div class="filters" id="filters"></div>
   <div class="filters" id="viewmode"></div>
 
@@ -153,11 +190,24 @@
       <div class="panel">
         <h2>My timetable</h2>
         <div id="mine"></div>
+        <div class="panel-actions">
+          <button id="icsBtn" hidden>Add to calendar (.ics)</button>
+        </div>
       </div>
     </div>
   </div>
 
   <div class="toast" id="toast" role="status"></div>
+
+  <!-- QR-jakoikkuna: linkki QR-koodina kasvokkain jakamista varten. -->
+  <div class="modal" id="qrModal" hidden role="dialog" aria-modal="true" aria-labelledby="qrTitle">
+    <div class="modal-box">
+      <h2 id="qrTitle">Scan to open</h2>
+      <canvas id="qrCanvas" aria-label="QR code of your schedule link"></canvas>
+      <div class="qr-url" id="qrUrl"></div>
+      <button id="qrClose" class="primary">Close</button>
+    </div>
+  </div>
 
   <!-- Mobiilin alapalkki ja "Now"-pikanappi (näkyvät vain kapealla näytöllä). -->
   <button class="fab" id="nowFab" hidden>● Now</button>
@@ -166,6 +216,7 @@
     <button id="tabMine">My timetable</button>
   </div>
 
+  <script src="qr.js"></script>
   <script>
   "use strict";
 
@@ -177,6 +228,11 @@
   let viewMode = "stage"; // "stage" = lavajaottelu, "time" = aikajärjestys (näkymäasetus)
   let showPast = false; // näytetäänkö menneet päivät pääaikataulussa (oletuksena piilossa)
   let mobileTab = "schedule"; // mobiilin aktiivinen välilehti: "schedule" | "mine"
+  let searchQuery = ""; // artistihaun suodatin, pienaakkosina (näkymäasetus, ei URL:iin)
+  let myName = ""; // oma aikataulun nimi; kulkee jaetussa linkissä (#...&n=...)
+  // Kaverivertailu: avatun jaetun linkin valinnat, kun ne eroavat omista.
+  // Vain muistissa (ei URL:iin eikä localStorageen) — sulkeutuu sivun latauksessa.
+  let compare = null; // null | { picks: Set<number>, name: string }
 
   const $ = (id) => document.getElementById(id);
   const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
@@ -297,7 +353,11 @@
 
   function syncUrl() {
     const code = encodeSelection();
-    const hash = code ? "#s=" + code : "";
+    // Aikataulun nimi kulkee hashissa valintojen mukana (&n=...). Hash ei lähde
+    // palvelimelle. HUOM: nimi on vapaata käyttäjätekstiä — sitä EI saa koskaan
+    // renderöidä innerHTML:llä (ks. MAINTENANCE.md:n turvallisuushuomautus).
+    let hash = code ? "#s=" + code : "";
+    if (code && myName) hash += "&n=" + encodeURIComponent(myName);
     history.replaceState(null, "", location.pathname + location.search + hash);
     saveLocal(code); // varmuuskopio: säilyy myös kun appi avataan ilman jaettua linkkiä
   }
@@ -305,6 +365,12 @@
   function hashCode() {
     const m = location.hash.match(/[#&]s=([^&]+)/);
     return m ? m[1] : "";
+  }
+
+  // Jaetun linkin mukana kulkeva aikataulun nimi (vapaata tekstiä -> vain textContent!).
+  function nameParam() {
+    const m = location.hash.match(/[#&]n=([^&]+)/);
+    try { return m ? decodeURIComponent(m[1]).slice(0, 60) : ""; } catch (e) { return ""; }
   }
 
   // --- Paikallinen varmuuskopio (localStorage) ---
@@ -319,6 +385,17 @@
 
   function loadLocal() {
     try { return localStorage.getItem(storageKey()) || ""; } catch (e) { return ""; }
+  }
+
+  // Oma aikataulun nimi säilyy festarikohtaisesti kuten valinnatkin.
+  function nameKey() { return "festival-name:" + (activeFestival || "default"); }
+
+  function saveName(name) {
+    try { localStorage.setItem(nameKey(), name); } catch (e) { /* privaattitila */ }
+  }
+
+  function loadName() {
+    try { return localStorage.getItem(nameKey()) || ""; } catch (e) { return ""; }
   }
 
   // --- Renderöinti ---
@@ -338,9 +415,10 @@
   }
 
   // Valinnan palautus käynnistyksessä. Jaetun linkin avaaminen ei saa ylikirjoittaa
-  // omaa tallennettua valintaa kysymättä: jos linkissä on eri valinta kuin omassa
-  // varmuuskopiossa, kysytään kumpi pidetään. Eri ohjelmaversiolle tehty tai
-  // viallinen linkki hylätään ilmoituksella ja omat valinnat säilyvät.
+  // omaa tallennettua valintaa kysymättä: jos linkin valinta eroaa omasta, avataan
+  // VERTAILUTILA — omat valinnat jäävät voimaan ja kaverin valinnat näkyvät
+  // rinnalla, kunnes vertailu suljetaan tai kaverin valinnat otetaan käyttöön.
+  // Eri ohjelmaversiolle tehty tai viallinen linkki hylätään ilmoituksella.
   function restoreSelection() {
     const link = hashCode();
     const own = decodeToSet(loadLocal()) || new Set();
@@ -352,17 +430,20 @@
       return;
     }
     const same = shared.size === own.size && [...shared].every((id) => own.has(id));
-    let use = shared;
-    if (!shared.size) {
-      use = own; // tyhjä jaettu valinta ei kanna tietoa -> älä pyyhi omia valintoja
-    } else if (own.size && !same) {
-      const load = confirm(
-        `This link contains a shared schedule (${shared.size} artist${shared.size === 1 ? "" : "s"}). ` +
-        `Load it and replace your saved selection (${own.size} artist${own.size === 1 ? "" : "s"})?`
-      );
-      if (!load) use = own;
+    if (!shared.size || same) {
+      // Tyhjä jaettu valinta ei kanna tietoa; identtinen ei vaadi vertailua.
+      setSelection(own.size ? own : shared);
+      return;
     }
-    setSelection(use);
+    if (!own.size) {
+      // Ei omia valintoja -> jaettu otetaan sellaisenaan käyttöön.
+      setSelection(shared);
+      const nm = nameParam();
+      if (nm) toast(`Loaded “${nm}”`, 3000);
+      return;
+    }
+    setSelection(own);
+    compare = { picks: shared, name: nameParam() };
   }
 
   // Palauttaa setin valittujen id:istä jotka menevät päällekkäin toisen valitun kanssa.
@@ -384,14 +465,41 @@
     return clash;
   }
 
+  // Artistihaku: suodattaa pääaikataulua nimellä (ei vaikuta valintaan/linkkiin).
+  function matchesSearch(a) {
+    return !searchQuery || a.name.toLowerCase().includes(searchQuery);
+  }
+
+  // My timetable -näkymän id:t: vertailutilassa omien ja kaverin valintojen unioni.
+  function mineIds() {
+    if (!compare) return [...selected];
+    const u = new Set(selected);
+    for (const id of compare.picks) u.add(id);
+    return [...u];
+  }
+
+  function renderCompareBar() {
+    const bar = $("compareBar");
+    if (!compare) { bar.hidden = true; return; }
+    const common = [...compare.picks].filter((id) => selected.has(id)).length;
+    const who = compare.name ? `“${compare.name}”` : "a friend's schedule";
+    // textContent: nimi on vapaata käyttäjätekstiä jaetusta linkistä (ei innerHTML!).
+    $("compareText").textContent =
+      `Comparing with ${who} — ${compare.picks.size} picks, ${common} in common. ` +
+      `Their picks are dashed; shared ones are tagged in My timetable.`;
+    bar.hidden = false;
+  }
+
   function render() {
     const clash = clashingIds();
+    renderCompareBar();
     renderFilters();
     renderDays(clash);
     renderMine(clash);
     $("count").textContent = `${selected.size} selected` + (clash.size ? ` · ${clash.size} overlapping` : "");
     $("clearBtn").disabled = selected.size === 0;
     $("shareBtn").disabled = false;
+    $("icsBtn").hidden = selected.size === 0;
     // Mobiilivälilehden nimi näyttää valintojen määrän.
     $("tabMine").textContent = "My timetable" + (selected.size ? ` (${selected.size})` : "");
     // "Now"-pikanappi näkyy vain festarin aikana (kun jokin päivä on käynnissä).
@@ -460,7 +568,9 @@
   function actRow(a, withStage, now) {
     const el = document.createElement("div");
     const st = actStatus(a, now);
+    const friend = compare && compare.picks.has(a.id);
     el.className = "act" + (selected.has(a.id) ? " picked" : "") +
+      (friend ? " friendpick" : "") +
       (st === "past" ? " past" : st === "live" ? " live" : "");
     el.dataset.id = a.id;
     const stage = withStage ? ` <span class="st-inline">${esc(a.stage)}</span>` : "";
@@ -472,7 +582,8 @@
     el.tabIndex = 0;
     el.setAttribute("aria-pressed", selected.has(a.id) ? "true" : "false");
     el.setAttribute("aria-label",
-      `${a.name}, ${a.start}–${a.end}, ${a.stage}` + (st === "live" ? ", on stage now" : ""));
+      `${a.name}, ${a.start}–${a.end}, ${a.stage}` + (st === "live" ? ", on stage now" : "") +
+      (friend ? ", picked by your friend" : ""));
     el.onclick = () => toggle(a.id);
     el.onkeydown = (ev) => {
       if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggle(a.id, true); }
@@ -499,19 +610,25 @@
     wrap.innerHTML = "";
     const now = nowDate();
     const allPast = eventAllPast(now);
+    const searching = !!searchQuery;
 
     // "Näytä menneet päivät" -nappi vain kun selataan kaikkia päiviä ja menneitä
     // päiviä on olemassa. Jos koko tapahtuma on ohi, nappia ei näytetä (kaikki
     // näkyy joka tapauksessa). Yksittäisen päivän suodatus näyttää päivän aina.
-    if (!dayFilter && !allPast) {
+    // Haku etsii myös menneiltä päiviltä, joten nappi on silloin tarpeeton.
+    if (!dayFilter && !allPast && !searching) {
       const pastCount = DATA.days.filter((d) => dayStatus(d, now) === "past").length;
       if (pastCount) wrap.appendChild(pastToggle(pastCount));
     }
 
+    let shownActs = 0;
     for (const day of DATA.days) {
       if (dayFilter && day.id !== dayFilter) continue;
       // Piilota menneet päivät oletuksena (vain "kaikki päivät" -näkymässä).
-      if (!dayFilter && !showPast && !allPast && dayStatus(day, now) === "past") continue;
+      // Haettaessa mennytkin päivä näytetään, jos sieltä löytyy osuma.
+      if (!dayFilter && !showPast && !allPast && !searching && dayStatus(day, now) === "past") continue;
+      const dayActs = DATA.acts.filter((a) => a.day === day.id && matchesSearch(a));
+      if (searching && !dayActs.length) continue; // päivä ilman osumia piiloon haussa
       const dEl = document.createElement("div");
       dEl.className = "day";
       if (dayStatus(day, now) === "current") dEl.id = "today-anchor"; // "Now"-napin kohde
@@ -519,15 +636,14 @@
 
       if (viewMode === "time") {
         // Aikajärjestys lavasta riippumatta; lava näkyy nimen perässä.
-        const acts = DATA.acts
-          .filter((a) => a.day === day.id)
+        const acts = dayActs.slice()
           .sort((a, b) => eveMin(a.start) - eveMin(b.start) || a.stage.localeCompare(b.stage));
         for (const a of acts) dEl.appendChild(actRow(a, true, now));
       } else {
         // Lavajaottelu.
         for (const stage of DATA.stages) {
-          const acts = DATA.acts
-            .filter((a) => a.day === day.id && a.stage === stage)
+          const acts = dayActs
+            .filter((a) => a.stage === stage)
             .sort((a, b) => eveMin(a.start) - eveMin(b.start));
           if (!acts.length) continue;
           const sEl = document.createElement("div");
@@ -538,13 +654,22 @@
         }
       }
       wrap.appendChild(dEl);
+      shownActs += dayActs.length;
+    }
+
+    if (searching && !shownActs) {
+      const msg = document.createElement("div");
+      msg.className = "empty";
+      msg.textContent = `No artists match “${$("searchBox").value.trim()}”.`;
+      wrap.appendChild(msg);
     }
   }
 
   function renderMine(clash) {
     const wrap = $("mine");
     wrap.innerHTML = "";
-    if (!selected.size) {
+    const ids = mineIds(); // vertailutilassa omien ja kaverin valintojen unioni
+    if (!ids.length) {
       wrap.innerHTML = '<div class="empty">No artists selected yet.</div>';
       return;
     }
@@ -556,7 +681,7 @@
     // päivät, joilla on omia valintoja (vain ne ovat tässä näkymässä piilossa).
     if (!allPast) {
       const pastPickDays = DATA.days.filter((d) =>
-        dayStatus(d, now) === "past" && [...selected].some((id) => actById(id).day === d.id)
+        dayStatus(d, now) === "past" && ids.some((id) => actById(id).day === d.id)
       ).length;
       if (pastPickDays) wrap.appendChild(pastToggle(pastPickDays));
     }
@@ -567,7 +692,7 @@
       // paljastaa ne yhtä aikaa sekä pääaikataulussa että My timetablessa.
       // Jos koko tapahtuma on ohi, näytetään kaikki päivät oletuksena.
       if (!showPast && !allPast && dayStatus(day, now) === "past") continue;
-      const acts = [...selected].map(actById)
+      const acts = ids.map(actById)
         .filter((a) => a.day === day.id)
         .sort((a, b) => eveMin(a.start) - eveMin(b.start));
       if (!acts.length) continue;
@@ -576,7 +701,8 @@
       dEl.innerHTML = `<div class="d">${day.label}</div>`;
       const isCurrent = dayStatus(day, now) === "current";
       // Signature: päivän valintojen aikajana (näyttää törmäykset palkkeina).
-      const tl = clashTimeline(day, acts, clash, now, isCurrent);
+      // Vertailutilassa aikajana näyttää vain omat valinnat (törmäyslogiikan tapaan).
+      const tl = clashTimeline(day, acts.filter((a) => selected.has(a.id)), clash, now, isCurrent);
       if (tl) dEl.appendChild(tl);
       let nowLineDone = false;
       for (const a of acts) {
@@ -588,11 +714,18 @@
           nowLineDone = true;
         }
         const badge = st === "live" ? ` <span class="badge-now">NOW</span>` : "";
+        // Vertailumerkinnät: yhteinen valinta / vain kaverin valinta. Kiinteät
+        // sanat ("both"/"friend") — kaverin nimeä ei laiteta innerHTML:ään.
+        const both = compare && selected.has(a.id) && compare.picks.has(a.id);
+        const friendOnly = compare && !selected.has(a.id);
+        const tag = both ? ` <span class="tag both">both</span>` :
+          friendOnly ? ` <span class="tag friend">friend</span>` : "";
         const item = document.createElement("div");
         item.className = "mine-item" + (clash.has(a.id) ? " clash" : "") +
+          (both ? " both" : "") + (friendOnly ? " friend" : "") +
           (st === "past" ? " past" : st === "live" ? " live" : "");
         item.innerHTML =
-          `<span><span class="nm">${esc(a.name)}${badge}</span><br><span class="st">${esc(a.stage)}</span></span>` +
+          `<span><span class="nm">${esc(a.name)}${badge}${tag}</span><br><span class="st">${esc(a.stage)}</span></span>` +
           `<span class="tm">${a.start}–${a.end}</span>`;
         dEl.appendChild(item);
       }
@@ -684,13 +817,97 @@
     toastTimer = setTimeout(() => t.classList.remove("show"), ms || 1600);
   }
 
+  // --- Kalenterivienti (ICS): omat valinnat .ics-tiedostona ---
+  // Ei backendia: tiedosto rakennetaan selaimessa ja ladataan Blobina. Ajat
+  // kirjoitetaan paikallisena ("floating") aikana — festari on paikallinen
+  // tapahtuma, ja at() hoitaa keskiyön yli menevät esiintymiset oikein.
+
+  function icsEscape(s) {
+    return String(s).replace(/\\/g, "\\\\").replace(/;/g, "\\;")
+      .replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+  }
+
+  function icsDate(d) {
+    const p = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) +
+      "T" + p(d.getHours()) + p(d.getMinutes()) + "00";
+  }
+
+  function buildIcs() {
+    // DTSTAMP on RFC:n mukaan UTC-aikaa.
+    const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+    const lines = [
+      "BEGIN:VCALENDAR", "VERSION:2.0",
+      "PRODID:-//festival-schedule//EN", "CALSCALE:GREGORIAN",
+    ];
+    const picks = [...selected].map(actById)
+      .sort((a, b) => a.day === b.day ? eveMin(a.start) - eveMin(b.start) : 0);
+    for (const a of picks) {
+      const day = DATA.days.find((d) => d.id === a.day);
+      const s = day && at(day, a.start), e = day && at(day, a.end);
+      if (!s || !e) continue;
+      lines.push(
+        "BEGIN:VEVENT",
+        `UID:${activeFestival}-${a.id}@festival-schedule`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART:${icsDate(s)}`,
+        `DTEND:${icsDate(e)}`,
+        `SUMMARY:${icsEscape(a.name)}`,
+        `LOCATION:${icsEscape(a.stage + ", " + DATA.festival)}`,
+        "END:VEVENT"
+      );
+    }
+    lines.push("END:VCALENDAR");
+    return lines.join("\r\n") + "\r\n";
+  }
+
+  function exportIcs() {
+    const blob = new Blob([buildIcs()], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (activeFestival || "festival") + "-schedule.ics";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // --- QR-jako: linkki QR-koodina (kätevä festarilla kasvokkain) ---
+  // qrEncode tulee vendoroidusta qr.js:stä — toimii offline, ei CDN:ää.
+  function showQr() {
+    if (typeof qrEncode === "undefined") { toast("QR code unavailable"); return; }
+    syncUrl();
+    const url = location.href;
+    let matrix;
+    try { matrix = qrEncode(url); } catch (e) { toast("Link too long for a QR code"); return; }
+    const canvas = $("qrCanvas");
+    const scale = 6, quiet = 4; // quiet zone: 4 moduulin vaalea reunus (spec)
+    const n = matrix.length;
+    canvas.width = canvas.height = (n + quiet * 2) * scale;
+    const g = canvas.getContext("2d");
+    g.fillStyle = "#fff"; // aina musta valkoisella — luotettavin lukea, teemasta riippumatta
+    g.fillRect(0, 0, canvas.width, canvas.height);
+    g.fillStyle = "#000";
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (matrix[r][c]) g.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+      }
+    }
+    // textContent: nimi ja URL ovat vapaata tekstiä (ei innerHTML!).
+    $("qrTitle").textContent = (myName ? myName + " — " : "") + "Scan to open";
+    $("qrUrl").textContent = url;
+    $("qrModal").hidden = false;
+    $("qrClose").focus();
+  }
+
   async function share() {
     syncUrl();
     const url = location.href;
     // Mobiilissa natiivi jakovalikko (WhatsApp, viestit…); muuten leikepöytä.
     if (navigator.share) {
       try {
-        await navigator.share({ title: `${DATA.festival} — My Schedule`, url });
+        await navigator.share({ title: (myName ? myName + " — " : "") + `${DATA.festival} — My Schedule`, url });
         return;
       } catch (e) {
         if (e && e.name === "AbortError") return; // käyttäjä perui jaon
@@ -822,10 +1039,38 @@
     document.title = `${DATA.festival} — My Schedule`;
     $("appTitle").textContent = `${DATA.festival} — My Schedule`;
     populateFestivalSelect();
-    // Palauta valinta: jaettu linkki ja/tai oma varmuuskopio (kysyy jos ristiriita).
+    myName = loadName();
+    $("schedName").value = myName;
+    // Palauta valinta: jaettu linkki ja/tai oma varmuuskopio (ristiriita avaa
+    // vertailutilan). syncUrl kirjoittaa hashiin OMAN valinnan — vertailu on
+    // vain muistissa, joten jako ja uudelleenlataus toimivat omilla valinnoilla.
     restoreSelection();
-    // Kirjoittaa hashin (jaettavaksi) ja varmuuskopion riippumatta lähteestä.
     syncUrl();
+    $("schedName").oninput = () => {
+      myName = $("schedName").value.trim();
+      saveName(myName);
+      syncUrl();
+    };
+    $("adoptBtn").onclick = () => {
+      if (!compare) return;
+      setSelection(compare.picks);
+      compare = null;
+      syncUrl();
+      render();
+      toast("Loaded their picks");
+    };
+    $("compareClose").onclick = () => { compare = null; render(); };
+    $("searchBox").oninput = () => {
+      searchQuery = $("searchBox").value.trim().toLowerCase();
+      render();
+    };
+    $("icsBtn").onclick = exportIcs;
+    $("qrBtn").onclick = showQr;
+    $("qrClose").onclick = () => { $("qrModal").hidden = true; };
+    $("qrModal").onclick = (e) => { if (e.target === $("qrModal")) $("qrModal").hidden = true; };
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !$("qrModal").hidden) $("qrModal").hidden = true;
+    });
     $("shareBtn").onclick = share;
     $("clearBtn").onclick = () => {
       if (!selected.size) return;
