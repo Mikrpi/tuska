@@ -54,7 +54,9 @@
     button.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:bold; }
     button:disabled { opacity:.45; cursor:not-allowed; }
     .fest-select { font-family:var(--font-display); text-transform:uppercase; letter-spacing:.03em; font-size:15px; padding:8px 12px; background:var(--surface2); color:var(--ink); border:1px solid var(--line); border-radius:8px; cursor:pointer; max-width:100%; }
-    .txt-input { font-size:14px; padding:8px 12px; background:var(--surface2); color:var(--ink); border:1px solid var(--line); border-radius:8px; }
+    /* Syötekenttien fontin on oltava >= 16px: pienemmällä iOS Safari zoomaa
+       automaattisesti kenttään fokusoitaessa eikä palauta zoomia. */
+    .txt-input { font-size:16px; padding:7px 12px; background:var(--surface2); color:var(--ink); border:1px solid var(--line); border-radius:8px; }
     .txt-input::placeholder { color:var(--faint); }
     #schedName { flex:0 1 190px; min-width:130px; }
     #searchBox { flex:1 1 200px; max-width:320px; }
