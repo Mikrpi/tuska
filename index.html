@@ -66,6 +66,7 @@
     .stage h3 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 5px; }
     .act { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:7px 10px; border:1px solid var(--line); border-left:4px solid var(--line); border-radius:0 7px 7px 0; margin-bottom:5px; cursor:pointer; user-select:none; }
     .act:hover { background:color-mix(in srgb, var(--ink) 7%, transparent); }
+    .act:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
     .act.picked { background:var(--pick); border-color:var(--pick-border); border-left-color:var(--pick-border); }
     .act .nm { font-weight:600; }
     .act .tm { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
@@ -91,7 +92,7 @@
     .now-line { display:flex; align-items:center; gap:8px; margin:7px 0; color:var(--accent); font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:.06em; }
     .now-line::before, .now-line::after { content:""; height:1px; background:var(--accent); flex:1; opacity:.55; }
     .empty { color:var(--faint); font-size:13px; }
-    .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--accent); color:var(--on-accent); font-weight:bold; padding:10px 16px; border-radius:8px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:70; }
+    .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--accent); color:var(--on-accent); font-weight:bold; padding:10px 16px; border-radius:8px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:70; max-width:calc(100vw - 32px); text-align:center; }
     .toast.show { opacity:1; }
 
     /* Signature: clash-aikajana. Päivän valinnat piirretään palkkeina aika-akselille;
@@ -156,7 +157,7 @@
     </div>
   </div>
 
-  <div class="toast" id="toast"></div>
+  <div class="toast" id="toast" role="status"></div>
 
   <!-- Mobiilin alapalkki ja "Now"-pikanappi (näkyvät vain kapealla näytöllä). -->
   <button class="fab" id="nowFab" hidden>● Now</button>
@@ -248,30 +249,50 @@
 
   // --- URL-tila: valinnat bittimaskina base64url-muodossa hash-osassa (#s=...) ---
   // Bitti i = acts[i] valittu. Hash ei lähde palvelimelle -> valinta pysyy yksityisenä.
+  // Koodin alussa on actien määrä ("60.<maski>"): jos ohjelma muuttuu linkin luonnin
+  // jälkeen, määrä ei täsmää ja koodi hylätään sen sijaan, että bittimaski osuisi
+  // hiljaa vääriin artisteihin. Etuliitteettömät koodit (vanhat linkit ja ennen tätä
+  // versiota tallennetut varmuuskopiot) hyväksytään ilman määrätarkistusta.
 
   function encodeSelection() {
+    if (!selected.size) return "";
     const n = DATA.acts.length;
     const bytes = new Uint8Array(Math.ceil(n / 8));
     for (const id of selected) bytes[id >> 3] |= 1 << (id & 7);
     let bin = "";
     for (const b of bytes) bin += String.fromCharCode(b);
-    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const mask = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return n + "." + mask;
   }
 
-  function decodeSelection(code) {
-    selected.clear();
-    if (!code) return;
+  // Palauttaa koodin valinnat Settinä, tai null jos koodi on viallinen tai tehty
+  // eri ohjelmaversiolle. Tyhjä koodi on kelvollinen tyhjä valinta.
+  function decodeToSet(code) {
+    if (!code) return new Set();
+    let mask = code;
+    const m = code.match(/^(\d+)\.(.*)$/);
+    if (m) {
+      if (+m[1] !== DATA.acts.length) return null; // ohjelma muuttunut -> hylkää
+      mask = m[2];
+    }
     try {
-      let b64 = code.replace(/-/g, "+").replace(/_/g, "/");
+      let b64 = mask.replace(/-/g, "+").replace(/_/g, "/");
       while (b64.length % 4) b64 += "=";
       const bin = atob(b64);
+      const out = new Set();
       for (let i = 0; i < DATA.acts.length; i++) {
         const byte = bin.charCodeAt(i >> 3) || 0;
-        if (byte & (1 << (i & 7))) selected.add(i);
+        if (byte & (1 << (i & 7))) out.add(i);
       }
+      return out;
     } catch (e) {
-      /* viallinen koodi -> tyhjä valinta */
+      return null; // viallinen koodi
     }
+  }
+
+  function setSelection(set) {
+    selected.clear();
+    for (const id of set) selected.add(id);
   }
 
   function syncUrl() {
@@ -281,9 +302,9 @@
     saveLocal(code); // varmuuskopio: säilyy myös kun appi avataan ilman jaettua linkkiä
   }
 
-  function readUrl() {
+  function hashCode() {
     const m = location.hash.match(/[#&]s=([^&]+)/);
-    decodeSelection(m ? m[1] : "");
+    return m ? m[1] : "";
   }
 
   // --- Paikallinen varmuuskopio (localStorage) ---
@@ -304,11 +325,44 @@
 
   function actById(id) { return DATA.acts[id]; }
 
-  function toggle(id) {
+  function toggle(id, refocus) {
     if (selected.has(id)) selected.delete(id);
     else selected.add(id);
     syncUrl();
     render();
+    // render() rakentaa rivit uudelleen -> palauta näppäimistöfokus samaan riviin.
+    if (refocus) {
+      const el = document.querySelector(`.act[data-id="${id}"]`);
+      if (el) el.focus();
+    }
+  }
+
+  // Valinnan palautus käynnistyksessä. Jaetun linkin avaaminen ei saa ylikirjoittaa
+  // omaa tallennettua valintaa kysymättä: jos linkissä on eri valinta kuin omassa
+  // varmuuskopiossa, kysytään kumpi pidetään. Eri ohjelmaversiolle tehty tai
+  // viallinen linkki hylätään ilmoituksella ja omat valinnat säilyvät.
+  function restoreSelection() {
+    const link = hashCode();
+    const own = decodeToSet(loadLocal()) || new Set();
+    if (!link) { setSelection(own); return; }
+    const shared = decodeToSet(link);
+    if (shared === null) {
+      setSelection(own);
+      toast("This link was made for an older line-up — showing your own picks instead.", 6000);
+      return;
+    }
+    const same = shared.size === own.size && [...shared].every((id) => own.has(id));
+    let use = shared;
+    if (!shared.size) {
+      use = own; // tyhjä jaettu valinta ei kanna tietoa -> älä pyyhi omia valintoja
+    } else if (own.size && !same) {
+      const load = confirm(
+        `This link contains a shared schedule (${shared.size} artist${shared.size === 1 ? "" : "s"}). ` +
+        `Load it and replace your saved selection (${own.size} artist${own.size === 1 ? "" : "s"})?`
+      );
+      if (!load) use = own;
+    }
+    setSelection(use);
   }
 
   // Palauttaa setin valittujen id:istä jotka menevät päällekkäin toisen valitun kanssa.
@@ -352,6 +406,8 @@
     document.body.classList.toggle("tab-mine", tab === "mine");
     $("tabSchedule").classList.toggle("active", tab === "schedule");
     $("tabMine").classList.toggle("active", tab === "mine");
+    $("tabSchedule").setAttribute("aria-pressed", tab === "schedule" ? "true" : "false");
+    $("tabMine").setAttribute("aria-pressed", tab === "mine" ? "true" : "false");
   }
 
   // "Now"-pikanappi: tuo kuluvan päivän näkyviin ja vierittää nykyhetkeen.
@@ -379,6 +435,7 @@
       const b = document.createElement("button");
       b.textContent = o.label;
       if (dayFilter === o.id) b.className = "active";
+      b.setAttribute("aria-pressed", dayFilter === o.id ? "true" : "false");
       b.onclick = () => { dayFilter = o.id; render(); };
       wrap.appendChild(b);
     }
@@ -394,6 +451,7 @@
       const b = document.createElement("button");
       b.textContent = o.label;
       if (viewMode === o.id) b.className = "active";
+      b.setAttribute("aria-pressed", viewMode === o.id ? "true" : "false");
       b.onclick = () => { viewMode = o.id; render(); };
       vwrap.appendChild(b);
     }
@@ -404,10 +462,21 @@
     const st = actStatus(a, now);
     el.className = "act" + (selected.has(a.id) ? " picked" : "") +
       (st === "past" ? " past" : st === "live" ? " live" : "");
+    el.dataset.id = a.id;
     const stage = withStage ? ` <span class="st-inline">${esc(a.stage)}</span>` : "";
     const badge = st === "live" ? ` <span class="badge-now">NOW</span>` : "";
     el.innerHTML = `<span class="nm">${esc(a.name)}${stage}${badge}</span><span class="tm">${a.start}–${a.end}</span>`;
+    // Saavutettavuus: rivi on vaihtopainike myös näppäimistölle ja ruudunlukijalle
+    // (pelkkä div + onclick ei ole kummankaan tavoitettavissa).
+    el.setAttribute("role", "button");
+    el.tabIndex = 0;
+    el.setAttribute("aria-pressed", selected.has(a.id) ? "true" : "false");
+    el.setAttribute("aria-label",
+      `${a.name}, ${a.start}–${a.end}, ${a.stage}` + (st === "live" ? ", on stage now" : ""));
     el.onclick = () => toggle(a.id);
+    el.onkeydown = (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggle(a.id, true); }
+    };
     return el;
   }
 
@@ -419,6 +488,7 @@
     const b = document.createElement("button");
     b.textContent = (showPast ? "Hide past days" : "Show past days") + ` (${count})`;
     if (showPast) b.className = "active";
+    b.setAttribute("aria-pressed", showPast ? "true" : "false");
     b.onclick = () => { showPast = !showPast; render(); };
     ctrl.appendChild(b);
     return ctrl;
@@ -605,11 +675,13 @@
     return wrap;
   }
 
-  function toast(msg) {
+  let toastTimer = null;
+  function toast(msg, ms) {
     const t = $("toast");
     t.textContent = msg;
     t.classList.add("show");
-    setTimeout(() => t.classList.remove("show"), 1600);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), ms || 1600);
   }
 
   async function share() {
@@ -696,26 +768,62 @@
     };
   }
 
-  async function init() {
-    const reg = await fetch("festivals.json").then((r) => r.json());
-    FESTIVALS = reg.festivals || [];
-    activeFestival = chooseFestival();
-    rememberFestival(activeFestival);
-    const fest = FESTIVALS.find((f) => f.id === activeFestival);
-    applyTheme(fest.theme);
+  async function fetchJson(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(url + ": HTTP " + r.status);
+    return r.json();
+  }
 
-    // Varmista että ?f= on URL:ssa (jotta jaettu linkki ja syncUrl säilyttävät sen).
-    if (festivalParam() !== activeFestival) {
-      history.replaceState(null, "", urlWithFestival(activeFestival, true));
+  // Datan lataus epäonnistui (esim. ei verkkoa ennen ensimmäistä käyntiä, tai
+  // palvelinvirhe): näytä viesti ja uudelleenyritys tyhjän sivun sijaan.
+  function showLoadError() {
+    $("shareBtn").disabled = true;
+    $("clearBtn").disabled = true;
+    const wrap = $("days");
+    wrap.innerHTML = "";
+    const msg = document.createElement("div");
+    msg.className = "empty";
+    msg.textContent = "Failed to load the schedule. Check your connection and try again.";
+    const retry = document.createElement("button");
+    retry.textContent = "Retry";
+    retry.style.marginTop = "10px";
+    retry.onclick = () => location.reload();
+    wrap.appendChild(msg);
+    wrap.appendChild(retry);
+  }
+
+  async function init() {
+    // PWA: rekisteröi service worker offline-tukea varten (vaatii HTTPS:n;
+    // epäonnistuu hiljaa esim. file://-protokollalla, mikä on ok). Rekisteröidään
+    // ennen datan latausta, jotta offline-tuki asentuu vaikka lataus epäonnistuisi.
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
     }
 
-    DATA = await fetch(fest.data).then((r) => r.json());
+    try {
+      const reg = await fetchJson("festivals.json");
+      FESTIVALS = reg.festivals || [];
+      if (!FESTIVALS.length) throw new Error("festivals.json: empty registry");
+      activeFestival = chooseFestival();
+      rememberFestival(activeFestival);
+      const fest = FESTIVALS.find((f) => f.id === activeFestival);
+      applyTheme(fest.theme);
+
+      // Varmista että ?f= on URL:ssa (jotta jaettu linkki ja syncUrl säilyttävät sen).
+      if (festivalParam() !== activeFestival) {
+        history.replaceState(null, "", urlWithFestival(activeFestival, true));
+      }
+
+      DATA = await fetchJson(fest.data);
+    } catch (e) {
+      showLoadError();
+      return;
+    }
     document.title = `${DATA.festival} — My Schedule`;
     $("appTitle").textContent = `${DATA.festival} — My Schedule`;
     populateFestivalSelect();
-    readUrl();
-    // Ei jaettua linkkiä? Palauta viime kerran valinta paikallisesta varmuuskopiosta.
-    if (selected.size === 0) decodeSelection(loadLocal());
+    // Palauta valinta: jaettu linkki ja/tai oma varmuuskopio (kysyy jos ristiriita).
+    restoreSelection();
     // Kirjoittaa hashin (jaettavaksi) ja varmuuskopion riippumatta lähteestä.
     syncUrl();
     $("shareBtn").onclick = share;
@@ -729,16 +837,18 @@
     $("tabMine").onclick = () => setTab("mine");
     $("nowFab").onclick = jumpToNow;
     setTab(mobileTab);
-    // Selaimen takaisin/eteenpäin (eri jaettu linkki) päivittää valinnan.
-    window.addEventListener("hashchange", () => { readUrl(); saveLocal(encodeSelection()); render(); });
+    // Hashin vaihtuminen (esim. osoiteriville liitetty toinen linkki) päivittää
+    // valinnan. Eri ohjelmaversion koodi hylätään ja nykyinen valinta säilyy.
+    window.addEventListener("hashchange", () => {
+      const s = decodeToSet(hashCode());
+      if (s) setSelection(s);
+      else toast("This link was made for an older line-up — keeping your selection.", 6000);
+      syncUrl();
+      render();
+    });
     render();
     // Päivitä mennyt/live/tuleva-tilat minuutin välein ilman sivun lataamista.
     setInterval(render, 60000);
-    // PWA: rekisteröi service worker offline-tukea varten (vaatii HTTPS:n;
-    // epäonnistuu hiljaa esim. file://-protokollalla, mikä on ok).
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("sw.js").catch(() => {});
-    }
   }
 
   document.addEventListener("DOMContentLoaded", init);

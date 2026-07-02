@@ -9,7 +9,7 @@
  * YLLÄPITO: nosta CACHE-versionumeroa aina kun julkaiset muutoksen, jotta vanha
  * välimuisti tyhjennetään asennuksen yhteydessä (esim. "tuska-v3").
  */
-const CACHE = "tuska-v8";
+const CACHE = "tuska-v9";
 const ASSETS = [
   "./",
   "./index.html",
@@ -44,10 +44,13 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
 
   // festari-indeksi ja datatiedostot (*.json): network-first
+  // Vain onnistuneet vastaukset tallennetaan — virhesivu (esim. 404/500) ei saa
+  // korvata toimivaa offline-kopiota. Virhevastauksella pudotaan välimuistiin.
   if (url.pathname.endsWith(".json")) {
     e.respondWith(
       fetch(req)
         .then((res) => {
+          if (!res.ok) return caches.match(req).then((cached) => cached || res);
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(req, copy));
           return res;
@@ -57,13 +60,15 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // muut: cache-first + taustapäivitys
+  // muut: cache-first + taustapäivitys (vain onnistunut vastaus välimuistiin)
   e.respondWith(
     caches.match(req).then((cached) => {
       const network = fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
           return res;
         })
         .catch(() => cached);

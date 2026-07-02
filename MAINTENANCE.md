@@ -22,9 +22,17 @@ festival) as a backup, and the last-used festival to `festival-active`, so both 
 opening the app without a link (e.g. from a home-screen icon).
 
 The selection hash is a bitmask over **one festival's** `acts` array, so it is only
-meaningful together with the matching `?f=`. When you switch festivals from the
-dropdown the app reloads to `?f=<new>` **without** the hash, then restores that
-festival's own saved picks.
+meaningful together with the matching `?f=`. The code carries the act count as a
+prefix (`#s=<count>.<mask>`, e.g. `#s=60.QQAI…`): if the line-up changes after a link
+was made, the count no longer matches and the app rejects the code with a notice
+instead of silently selecting the wrong artists. Prefix-less codes (links and
+localStorage backups from older versions) are still accepted without the check.
+When you switch festivals from the dropdown the app reloads to `?f=<new>` **without**
+the hash, then restores that festival's own saved picks.
+
+Opening a **shared link never silently overwrites your own saved picks**: if the
+link's selection differs from the localStorage backup, the app asks which one to
+keep (a link with an empty selection is ignored in favor of your own).
 
 ---
 
@@ -79,7 +87,11 @@ re-skins the whole app and updates the browser `theme-color`.
 1. **`acts[].id` = the array index: `0, 1, 2, … N-1`, contiguous.**
    The shareable hash is a bitmask where bit `id` = whether that act is selected.
    If the numbering has gaps or does not start at zero, shared links break.
-   The **number** of acts may change freely.
+   The **number** of acts may change freely — old links made against a different
+   act count are then detected (via the count prefix in the hash) and rejected
+   with a notice rather than selecting the wrong artists. Note that **reordering
+   acts without changing the count** is still invisible to this check, so avoid
+   reshuffling a published line-up; append new acts at the end.
 
 2. **Each day's `label` must contain a date in `d.m.yyyy` format** (e.g. `"Friday 25.6.2027"`).
    The past/live/upcoming logic parses the date from here. Don't change the format.
@@ -141,11 +153,16 @@ parameter, the browser's real clock is used.
 
 - **A shared link is only meaningful with its `?f=`.** The selection hash is a bitmask
   over one festival's `acts`, so `?f=` and `#s=` belong together. Modern links carry
-  both. **Legacy hash-only links** (from before multi-festival support, no `?f=`) open
-  against the *default* festival and would select the wrong artists — those old links
-  are stale anyway. The fix if ever needed: such links should append `?f=tuska2026`.
+  both, plus the act count that detects a changed line-up. **Legacy hash-only links**
+  (from before multi-festival support, no `?f=`, no count prefix) open against the
+  *default* festival and would select the wrong artists — those old links are stale
+  anyway, and they carry no count so the mismatch cannot be detected. The fix if ever
+  needed: such links should append `?f=tuska2026`.
   Note: the `localStorage` backup is keyed per festival (`festival-picks:<id>`), so
   different festivals' saved selections do **not** collide.
+- **Reordering a published line-up breaks old links undetectably** if the act count
+  stays the same (the bitmask indices shift but the count check passes). Append new
+  acts to the end of the array instead of inserting in the middle.
 
 ---
 
@@ -180,6 +197,8 @@ have poor signal). A service worker (`sw.js`) caches the app shell and data:
   last-minute corrections); offline falls back to the last cached copy.
 - **Everything else** (HTML, icons) uses **cache-first with background refresh** —
   instant load, works with no connection.
+- Only **successful (2xx) responses** are cached — an error page from the server can
+  never replace a working offline copy.
 
 When you add a new festival, add its `data-<id>.json` to the `ASSETS` precache list in
 `sw.js` so the festival is browsable offline before its first online visit.
