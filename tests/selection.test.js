@@ -112,8 +112,11 @@ t("mineIds is union in compare mode", mineIds().length===5);
 compare = null;
 t("mineIds is own picks normally", mineIds().length===2);
 
-// linkki identtinen oman kanssa -> ei vertailutilaa
+// linkki identtinen oman kanssa -> ei vertailutilaa; myös aiempi vertailu
+// päättyy (hashchange-polku: uusi liitetty linkki korvaa edellisen vertailun)
 selected.clear(); [1,2].forEach(i=>selected.add(i));
+state.store["festival-picks:test"] = encodeSelection();
+compare = { picks: new Set([9]), name: "old" }; // jäänne edellisestä vertailusta
 location.hash = "#s=" + encodeSelection();
 restoreSelection();
 t("no compare when same", compare===null && selected.size===2);

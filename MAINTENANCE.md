@@ -38,8 +38,10 @@ note below. The name is stored per festival in `localStorage`
 (`festival-name:<id>`) and shown in the share sheet, the QR dialog and the
 compare bar.
 
-Opening a **shared link never silently overwrites your own saved picks**: if the
-link's selection differs from the localStorage backup, the app opens **compare
+Opening a **shared link never silently overwrites your own saved picks** — both
+on a full page load and when a link is pasted into an already-open tab (which
+only changes the hash, no reload): if the link's selection differs from the
+localStorage backup, the app opens **compare
 mode** — your picks stay active, the friend's picks are shown alongside (dashed
 in the schedule, tagged `friend`/`both` in My timetable) until you press "Use
 these picks" or "Done comparing". Compare mode lives in memory only: the URL is

@@ -424,6 +424,7 @@
   // rinnalla, kunnes vertailu suljetaan tai kaverin valinnat otetaan käyttöön.
   // Eri ohjelmaversiolle tehty tai viallinen linkki hylätään ilmoituksella.
   function restoreSelection() {
+    compare = null; // mahdollinen edellinen vertailu päättyy aina tässä
     const link = hashCode();
     const own = decodeToSet(loadLocal()) || new Set();
     if (!link) { setSelection(own); return; }
@@ -1086,12 +1087,12 @@
     $("tabMine").onclick = () => setTab("mine");
     $("nowFab").onclick = jumpToNow;
     setTab(mobileTab);
-    // Hashin vaihtuminen (esim. osoiteriville liitetty toinen linkki) päivittää
-    // valinnan. Eri ohjelmaversion koodi hylätään ja nykyinen valinta säilyy.
+    // Hashin vaihtuminen (jaettu linkki liitettynä jo auki olevan sivun
+    // osoiteriville — sivu ei lataudu uudelleen, vain hash vaihtuu). Sama
+    // logiikka kuin käynnistyksessä: eroava valinta avaa vertailutilan omia
+    // valintoja ylikirjoittamatta, viallinen/vanhentunut linkki hylätään.
     window.addEventListener("hashchange", () => {
-      const s = decodeToSet(hashCode());
-      if (s) setSelection(s);
-      else toast("This link was made for an older line-up — keeping your selection.", 6000);
+      restoreSelection();
       syncUrl();
       render();
     });
