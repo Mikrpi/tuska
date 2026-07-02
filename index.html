@@ -82,6 +82,10 @@
     .act .nm { font-weight:600; }
     .act .tm { color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; white-space:nowrap; }
     .act.picked .tm { color:var(--pick-ink); }
+    /* Valittu rivi, joka menee päällekkäin toisen valinnan kanssa: törmäys
+       näkyy heti valintaa tehdessä, ei vasta My timetablessa. */
+    .act.picked.clash { background:var(--clash); border-color:var(--clash-border); border-left-color:var(--clash-border); }
+    .act.picked.clash .tm { color:var(--clash-note); }
     .act.past { opacity:.4; }
     .act.live { background:var(--live-bg); border-color:var(--accent); border-left-color:var(--accent); }
     .act.live .tm { color:var(--accent); }
@@ -603,17 +607,22 @@
     }
   }
 
-  function actRow(a, withStage, now) {
+  function actRow(a, withStage, now, clash) {
     const el = document.createElement("div");
     const st = actStatus(a, now);
     const friend = compare && compare.picks.has(a.id);
+    // Törmäys näytetään heti valintanäkymässä: punainen tausta + ⚠ ajan edessä
+    // (symboli, jotta tieto ei ole pelkän värin varassa).
+    const clashing = selected.has(a.id) && clash.has(a.id);
     el.className = "act" + (selected.has(a.id) ? " picked" : "") +
+      (clashing ? " clash" : "") +
       (friend ? " friendpick" : "") +
       (st === "past" ? " past" : st === "live" ? " live" : "");
     el.dataset.id = a.id;
     const stage = withStage ? ` <span class="st-inline">${esc(a.stage)}</span>` : "";
     const badge = st === "live" ? ` <span class="badge-now">NOW</span>` : "";
-    el.innerHTML = `<span class="nm">${esc(a.name)}${stage}${badge}</span><span class="tm">${a.start}–${a.end}</span>`;
+    const warn = clashing ? "⚠ " : "";
+    el.innerHTML = `<span class="nm">${esc(a.name)}${stage}${badge}</span><span class="tm">${warn}${a.start}–${a.end}</span>`;
     // Saavutettavuus: rivi on vaihtopainike myös näppäimistölle ja ruudunlukijalle
     // (pelkkä div + onclick ei ole kummankaan tavoitettavissa).
     el.setAttribute("role", "button");
@@ -621,6 +630,7 @@
     el.setAttribute("aria-pressed", selected.has(a.id) ? "true" : "false");
     el.setAttribute("aria-label",
       `${a.name}, ${a.start}–${a.end}, ${a.stage}` + (st === "live" ? ", on stage now" : "") +
+      (clashing ? ", overlaps another pick" : "") +
       (friend ? ", picked by your friend" : ""));
     el.onclick = () => toggle(a.id);
     el.onkeydown = (ev) => {
@@ -676,7 +686,7 @@
         // Aikajärjestys lavasta riippumatta; lava näkyy nimen perässä.
         const acts = dayActs.slice()
           .sort((a, b) => eveMin(a.start) - eveMin(b.start) || a.stage.localeCompare(b.stage));
-        for (const a of acts) dEl.appendChild(actRow(a, true, now));
+        for (const a of acts) dEl.appendChild(actRow(a, true, now, clash));
       } else {
         // Lavajaottelu.
         for (const stage of DATA.stages) {
@@ -687,7 +697,7 @@
           const sEl = document.createElement("div");
           sEl.className = "stage";
           sEl.innerHTML = `<h3>${stage}</h3>`;
-          for (const a of acts) sEl.appendChild(actRow(a, false, now));
+          for (const a of acts) sEl.appendChild(actRow(a, false, now, clash));
           dEl.appendChild(sEl);
         }
       }
