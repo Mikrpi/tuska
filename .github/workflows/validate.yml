@@ -1,0 +1,30 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Koko historia, jotta cache-bump-tarkistus voi verrata base-haaraan.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate festival data and sw.js precache list
+        run: node scripts/validate-data.js
+
+      - name: Run unit tests
+        run: node tests/selection.test.js
+
+      - name: Check sw.js cache version bump
+        if: github.event_name == 'pull_request'
+        run: bash scripts/check-cache-bump.sh "origin/${{ github.base_ref }}"

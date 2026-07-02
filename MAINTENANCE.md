@@ -44,6 +44,10 @@ stay intact:
 1. Add a `data-<id>.json` file with the line-up (structure below).
 2. Add an entry to `festivals.json` pointing at it.
 
+Then run `node scripts/validate-data.js` — it checks every critical rule below plus
+the `sw.js` precache list, so you don't have to verify them by hand (see
+"Validation, tests and CI").
+
 ```json
 // festivals.json — first entry is the default for new visitors
 {
@@ -215,6 +219,26 @@ to guarantee the whole app refreshes.)
 Note: the service worker requires **HTTPS** (Azure Static Web Apps provides it). It is
 silently skipped on `file://`, so opening `index.html` directly still works, just
 without offline caching.
+
+## Validation, tests and CI
+
+Three checks run automatically in GitHub Actions (`.github/workflows/validate.yml`)
+on every push to `main` and every pull request. All of them also run locally with
+plain Node, no dependencies to install:
+
+- **`node scripts/validate-data.js`** — validates `festivals.json`, every
+  `data-<id>.json` (all the "Critical rules" above: contiguous ids, date in the day
+  label, stage/day references, gate times, HH:MM times, start-before-end across
+  midnight, plus same-stage overlaps and orphan data files) and the `sw.js` ASSETS
+  precache list. Run this after every data edit.
+- **`node tests/selection.test.js`** — unit tests for the share-link
+  encode/decode/restore logic. The app script is extracted straight from
+  `index.html` and run in a sandbox, so the tests exercise the shipped code.
+  Run this after changing the selection/URL logic in `index.html`.
+- **`scripts/check-cache-bump.sh <base-ref>`** (pull requests only in CI) — fails
+  the PR if app-shell files (`index.html`, `sw.js`, manifest, icons) changed
+  without bumping the `CACHE` constant in `sw.js`. A `*.json`-only change passes
+  with a note, since the service worker fetches JSON network-first anyway.
 
 ## Deployment
 
