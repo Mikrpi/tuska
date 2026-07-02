@@ -54,12 +54,19 @@ valmistuu tai järjestys muuttuu.
 - [x] **`.github/workflows/validate.yml`** — ajaa kaikki kolme pusheissa
   mainiin ja PR:issä.
 
+### Datan tuontityökalu
+
+- [x] **`scripts/import-data.js`** — muuntaa CSV/TSV-taulukon (otsikkorivi
+  `day,stage,start,end,name`, erotin tunnistetaan) `data-<id>.json`-muotoon ja
+  numeroi act-id:t automaattisesti. Uudelle festarille kysyy metatiedot
+  interaktiivisesti ja rekisteröi sen myös festivals.jsoniin ja sw.js:n
+  precache-listaan (CACHE-bumpilla); päivityksessä säilyttää julkaistun
+  järjestyksen ja id:t, lisää uudet actit loppuun (`--prune` poistaa
+  poistuneet). Ajaa lopuksi validate-data.js:n. Testit: `tests/import.test.js`
+  (CI:ssä).
+
 ## Tekemättä: ylläpidon helpottaminen
 
-- [ ] **Datan tuontityökalu** — skripti, joka muuntaa CSV:n/taulukon
-  `data-<id>.json`-muotoon ja numeroi act-id:t automaattisesti. Poistaa
-  työläimmän vaiheen (ohjelman naputtelu käsin PDF:stä) ja id-sääntöjen
-  rikkomisen riskin.
 - [ ] **Cache-version automaattinen leimaus** — workflow stampaa versionumeron
   (esim. git-SHA) sw.js:ään deployssa, jolloin käsin bumppaus jää kokonaan
   pois. Kevyempi vaihtoehto (CI-varoitus) on jo tehty.

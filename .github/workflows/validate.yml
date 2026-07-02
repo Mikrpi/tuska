@@ -23,7 +23,9 @@ jobs:
         run: node scripts/validate-data.js
 
       - name: Run unit tests
-        run: node tests/selection.test.js
+        run: |
+          node tests/selection.test.js
+          node tests/import.test.js
 
       - name: Check sw.js cache version bump
         if: github.event_name == 'pull_request'

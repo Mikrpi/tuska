@@ -53,8 +53,36 @@ of your own.
 
 ## Adding or updating a festival
 
-Two steps, **no code changes needed** as long as the structure and critical rules below
-stay intact:
+The easiest way is the **import tool**, which does all the steps below in one go:
+
+```
+node scripts/import-data.js <festival-id> lineup.csv
+```
+
+The input is a table with a header row `day,stage,start,end,name` (any column
+order; tab-, semicolon- or comma-separated — detected automatically, so pasting
+from a spreadsheet works; times accept both `14:30` and `14.30`):
+
+```csv
+day,stage,start,end,name
+fri,Karhu Main Stage,14:30,15:25,Some Band
+fri,Kvlt Stage,00:00,01:00,Night Act
+```
+
+For a **new festival** it asks the name, info URL and each day's label and gate
+times interactively, then writes `data-<id>.json` with correctly numbered act
+ids, registers the festival in `festivals.json` **and** in the `sw.js` ASSETS
+precache list (bumping `CACHE`), and finishes by running `validate-data.js`.
+
+For an **existing festival** (schedule change) it preserves the published act
+order and ids — changed times/stages are updated in place, new acts are appended
+to the end (critical rule 1 below), and acts missing from the input are kept
+unless you pass `--prune`. It reports when the act count changes, since that
+invalidates already-shared links (with a notice to the user). `--dry-run` shows
+what would happen without writing anything.
+
+Doing the same **by hand** is two steps, no code changes needed as long as the
+structure and critical rules below stay intact:
 
 1. Add a `data-<id>.json` file with the line-up (structure below).
 2. Add an entry to `festivals.json` pointing at it.
@@ -253,6 +281,9 @@ plain Node, no dependencies to install:
   encode/decode/restore logic. The app script is extracted straight from
   `index.html` and run in a sandbox, so the tests exercise the shipped code.
   Run this after changing the selection/URL logic in `index.html`.
+- **`node tests/import.test.js`** — unit tests for the import tool's parsing,
+  merging (act id stability) and registration helpers. Run this after changing
+  `scripts/import-data.js`.
 - **`scripts/check-cache-bump.sh <base-ref>`** (pull requests only in CI) — fails
   the PR if app-shell files (`index.html`, `sw.js`, manifest, icons) changed
   without bumping the `CACHE` constant in `sw.js`. A `*.json`-only change passes
