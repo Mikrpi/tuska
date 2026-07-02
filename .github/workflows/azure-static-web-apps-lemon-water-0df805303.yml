@@ -19,6 +19,15 @@ jobs:
         with:
           submodules: true
           lfs: false
+      # Leimaa service workerin CACHE-versio commitin SHA:lla, jolloin jokainen
+      # deploy tyhjentää selainten vanhan välimuistin automaattisesti eikä
+      # sw.js:n versiovakiota tarvitse muistaa nostaa käsin. Käsin ylläpidetty
+      # vakio jää tiedostoon pohjaksi/varalle (esim. hostaus ilman tätä
+      # workflowta) — ks. MAINTENANCE.md.
+      - name: Stamp service worker cache version with the commit SHA
+        run: |
+          sed -i "s/^const CACHE = \"[^\"]*\";/const CACHE = \"tuska-${GITHUB_SHA::8}\";/" sw.js
+          grep "^const CACHE" sw.js
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1

@@ -15,8 +15,9 @@ backup) and never leaves their browser.
 - Share via link, native share sheet or QR code — opening a friend's link
   starts a comparison instead of overwriting your own picks
 - Calendar export (`.ics`), artist search, schedule naming
-- Installable PWA that works offline; supports multiple festivals with
-  per-festival colour themes
+- Image export: a shareable PNG of your timetable with a QR code that opens it
+- Installable PWA that works offline, with an in-app "App updated — Reload"
+  notice; supports multiple festivals with per-festival colour themes
 - In-app help: the “?” button in the toolbar
 
 ## Documentation

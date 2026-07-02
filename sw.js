@@ -9,7 +9,7 @@
  * YLLÄPITO: nosta CACHE-versionumeroa aina kun julkaiset muutoksen, jotta vanha
  * välimuisti tyhjennetään asennuksen yhteydessä (esim. "tuska-v3").
  */
-const CACHE = "tuska-v18";
+const CACHE = "tuska-v19";
 const ASSETS = [
   "./",
   "./index.html",
@@ -26,9 +26,23 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting())
-  );
+  e.waitUntil((async () => {
+    // Datatiedostojen lista generoidaan festivals.jsonista, jolloin uusi
+    // festari päätyy precacheen vaikka ASSETS-listan päivitys unohtuisi.
+    // Kiinteä lista yllä jää pohjaksi ja varalle (esim. jos rekisterin haku
+    // epäonnistuu asennushetkellä).
+    let assets = ASSETS;
+    try {
+      const reg = await (await fetch("./festivals.json", { cache: "no-cache" })).json();
+      const dataFiles = (reg.festivals || [])
+        .map((f) => f && typeof f.data === "string" ? "./" + f.data : null)
+        .filter(Boolean);
+      assets = [...new Set([...ASSETS, ...dataFiles])];
+    } catch (err) { /* offline tms. — käytetään kiinteää listaa */ }
+    const c = await caches.open(CACHE);
+    await c.addAll(assets);
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", (e) => {

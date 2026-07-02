@@ -256,17 +256,29 @@ have poor signal). A service worker (`sw.js`) caches the app shell and data:
 - Only **successful (2xx) responses** are cached — an error page from the server can
   never replace a working offline copy.
 
-When you add a new festival, add its `data-<id>.json` to the `ASSETS` precache list in
-`sw.js` so the festival is browsable offline before its first online visit.
+The install-time precache list is **generated from `festivals.json`**: the service
+worker fetches the registry during install and adds every festival's data file to
+the static core list. The hand-maintained `ASSETS` array in `sw.js` remains as the
+base (and as a fallback if the registry fetch fails at install time), and the
+import tool still keeps it in sync — but a festival missing from `ASSETS` is no
+longer invisible offline.
 
-### The one ongoing chore: bump the cache version on release
+When a **new version** of the app has installed in the background, the page shows a
+persistent **"App updated — Reload"** bar (wired in `init()`'s service-worker
+registration); the page is never reloaded automatically.
 
-When you deploy any change (new festival data, edited `index.html`, etc.), **increment
-the `CACHE` constant at the top of `sw.js`** (e.g. `"tuska-v2"` → `"tuska-v3"`).
-Changing the service worker file makes browsers install the new version and purge the
-old cache, so users reliably get the update. (Thanks to network-first, `*.json`
-changes propagate even without this — but bumping the version is the safe, explicit way
-to guarantee the whole app refreshes.)
+### Cache version on release: stamped automatically
+
+The Azure deploy workflow (`.github/workflows/azure-static-web-apps-*.yml`)
+**stamps the `CACHE` constant in `sw.js` with the commit SHA on every deploy**, so
+production users always get a fresh cache without anyone remembering to bump the
+version by hand.
+
+The manual mechanism is deliberately kept as a fallback for hosting the app
+without that workflow: the `CACHE` constant in the repo (e.g. `"tuska-v19"`) still
+works exactly as before, and the PR check (`scripts/check-cache-bump.sh`) still
+asks for a bump when app-shell files change. (Thanks to network-first, `*.json`
+changes propagate even without any of this.)
 
 Note: the service worker requires **HTTPS** (Azure Static Web Apps provides it). It is
 silently skipped on `file://`, so opening `index.html` directly still works, just

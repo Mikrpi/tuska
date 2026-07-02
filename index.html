@@ -128,6 +128,13 @@
     .empty { color:var(--faint); font-size:13px; }
     .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--accent); color:var(--on-accent); font-weight:bold; padding:10px 16px; border-radius:8px; opacity:0; transition:opacity .2s; pointer-events:none; z-index:70; max-width:calc(100vw - 32px); text-align:center; }
     .toast.show { opacity:1; }
+    /* Päivityspalkki: pysyy näkyvissä kunnes käyttäjä lataa sivun uudelleen. */
+    .updatebar { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); z-index:75;
+      display:flex; gap:12px; align-items:center; background:var(--surface);
+      border:1px solid var(--accent); border-radius:10px; padding:8px 8px 8px 14px;
+      font-size:13px; box-shadow:0 3px 12px rgba(0,0,0,.45); white-space:nowrap; }
+    .updatebar[hidden] { display:none; }
+    .updatebar button { font-size:13px; padding:6px 12px; }
 
     /* Signature: clash-aikajana. Päivän valinnat piirretään palkkeina aika-akselille;
        päällekkäiset menevät omille riveilleen, jolloin törmäys näkyy yhdellä silmäyksellä. */
@@ -195,6 +202,7 @@
       #filters .lbl-full { display:none; }
       #filters .lbl-short { display:inline; }
       .toast { bottom:84px; }
+      .updatebar { bottom:84px; } /* tabbarin yläpuolelle */
       .tabbar { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:60;
         background:var(--surface); border-top:1px solid var(--line); }
       .tabbar button { flex:1; border:none; border-radius:0; background:none;
@@ -251,12 +259,19 @@
         <div id="mine"></div>
         <div class="panel-actions">
           <button id="icsBtn" hidden>Add to calendar (.ics)</button>
+          <button id="imgBtn" hidden>Share as image</button>
         </div>
       </div>
     </div>
   </div>
 
   <div class="toast" id="toast" role="status"></div>
+
+  <!-- PWA-päivitysilmoitus: näkyy kun uusi versio on asentunut taustalla. -->
+  <div class="updatebar" id="updateBar" hidden role="status">
+    <span>App updated.</span>
+    <button id="updateReload" class="primary">Reload</button>
+  </div>
 
   <!-- QR-jakoikkuna: linkki QR-koodina kasvokkain jakamista varten. -->
   <div class="modal" id="qrModal" hidden role="dialog" aria-modal="true" aria-labelledby="qrTitle">
@@ -283,7 +298,8 @@
         <p><strong>Compare with a friend:</strong> opening their link shows their picks
         dashed alongside yours. Nothing is overwritten unless you tap “Use these picks”.</p>
         <p><strong>Add to calendar (.ics)</strong> in My timetable exports your picks
-        to your phone's calendar.</p>
+        to your phone's calendar. <strong>Share as image</strong> turns your timetable
+        into a picture with a QR code that opens the schedule.</p>
         <p><strong>Works offline:</strong> once opened, the app works without signal —
         add it to your home screen before heading to the festival. Past days hide
         automatically, artists on stage right now get a NOW badge, and on a phone the
@@ -586,6 +602,7 @@
     $("clearBtn").disabled = selected.size === 0;
     $("shareBtn").disabled = false;
     $("icsBtn").hidden = selected.size === 0;
+    $("imgBtn").hidden = selected.size === 0;
     // Mobiilivälilehden nimi näyttää valintojen määrän.
     $("tabMine").textContent = "My timetable" + (selected.size ? ` (${selected.size})` : "");
     // "Now"-pikanappi näkyy vain festarin aikana (kun jokin päivä on käynnissä).
@@ -1093,6 +1110,166 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
+  // --- Kuvavienti: oma aikataulu somejakoon sopivana pystykuvana (PNG) ---
+  // Piirretään canvakselle ilman riippuvuuksia, aktiivisen teeman väreillä.
+  // Alareunaan tulee QR-koodi jakolinkistä, joten kuvan näkijä pääsee samaan
+  // aikatauluun yhdellä skannauksella (korvaa kuvakaappaus + käsin piirto -tavan).
+
+  const IMG_W = 1080, IMG_M = 72; // kuvan leveys ja marginaali (px)
+
+  function themeVar(name, fallback) {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  }
+
+  function buildScheduleImage(matrix) {
+    const clash = clashingIds();
+    // Päiväkohtaiset omat valinnat aikajärjestyksessä, kuten My timetablessa
+    // (vertailutilan kaverivalintoja ei oteta mukaan — kuva on oma aikataulu).
+    const days = DATA.days
+      .map((day) => ({
+        day,
+        acts: [...selected].map(actById)
+          .filter((a) => a.day === day.id)
+          .sort((a, b) => eveMin(a.start) - eveMin(b.start)),
+      }))
+      .filter((d) => d.acts.length);
+
+    // Korkeus lasketaan etukäteen kiinteistä rivikorkeuksista.
+    const actH = 82, dayHeadH = 86, qrBox = 250;
+    let H = IMG_M + 64 + (myName ? 52 : 0) + 26;      // otsikko + nimi + jakoviiva
+    for (const d of days) H += dayHeadH + d.acts.length * actH;
+    H += 60 + qrBox + IMG_M;                          // alaosa: viiva + QR-alue
+
+    const canvas = document.createElement("canvas");
+    canvas.width = IMG_W;
+    canvas.height = H;
+    const g = canvas.getContext("2d");
+    const C = {
+      bg: themeVar("--bg", "#14171A"), ink: themeVar("--ink", "#E8EDF1"),
+      muted: themeVar("--muted", "#95A1AB"), faint: themeVar("--faint", "#69737C"),
+      accent: themeVar("--accent", "#4FA3C7"), line: themeVar("--line", "#2C343C"),
+      clash: themeVar("--clash-note", "#E08A85"),
+    };
+    const bodyFont = "system-ui,-apple-system,sans-serif"; // sama kuin sivun body
+    const dispFont = themeVar("--font-display", bodyFont);
+
+    g.fillStyle = C.bg;
+    g.fillRect(0, 0, IMG_W, H);
+    g.textBaseline = "top";
+
+    // Katkaisee tekstin kolmella pisteellä, jos se ei mahdu annettuun leveyteen.
+    const fitText = (text, maxW) => {
+      if (g.measureText(text).width <= maxW) return text;
+      let t = String(text);
+      while (t.length > 1 && g.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+      return t + "…";
+    };
+    const rule = (yy) => {
+      g.strokeStyle = C.line; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(IMG_M, yy); g.lineTo(IMG_W - IMG_M, yy); g.stroke();
+    };
+
+    let y = IMG_M;
+    g.fillStyle = C.accent;
+    g.font = `700 52px ${dispFont}`;
+    g.fillText(fitText(DATA.festival.toUpperCase(), IMG_W - 2 * IMG_M), IMG_M, y);
+    y += 64;
+    if (myName) { // vapaata käyttäjätekstiä — canvakselle piirto on turvallista (ei HTML:ää)
+      g.fillStyle = C.ink;
+      g.font = `600 36px ${bodyFont}`;
+      g.fillText(fitText(myName, IMG_W - 2 * IMG_M), IMG_M, y);
+      y += 52;
+    }
+    rule(y + 12);
+    y += 26;
+
+    const nameX = IMG_M + 200; // aikasarakkeen leveys
+    for (const { day, acts } of days) {
+      y += 32;
+      g.fillStyle = C.accent;
+      g.font = `700 34px ${dispFont}`;
+      g.fillText(fitText(day.label.toUpperCase(), IMG_W - 2 * IMG_M), IMG_M, y);
+      y += dayHeadH - 32;
+      for (const a of acts) {
+        const clashing = clash.has(a.id);
+        g.font = `600 28px ${bodyFont}`;
+        g.fillStyle = clashing ? C.clash : C.muted;
+        g.fillText((clashing ? "⚠ " : "") + `${a.start}–${a.end}`, IMG_M, y + 4);
+        g.fillStyle = C.ink;
+        g.font = `600 34px ${bodyFont}`;
+        g.fillText(fitText(a.name, IMG_W - IMG_M - nameX), nameX, y);
+        g.fillStyle = C.faint;
+        g.font = `26px ${bodyFont}`;
+        g.fillText(fitText(a.stage, IMG_W - IMG_M - nameX), nameX, y + 44);
+        y += actH;
+      }
+    }
+
+    y += 30;
+    rule(y);
+    y += 30;
+    if (matrix) {
+      // QR aina musta valkoisella omassa laatikossaan — luotettavin lukea
+      // tummallakin teemalla. Reunus toimii quiet zonena.
+      const n = matrix.length;
+      const scale = Math.max(2, Math.floor((qrBox - 40) / n));
+      const size = n * scale, pad = (qrBox - size) / 2;
+      const qx = IMG_W - IMG_M - qrBox;
+      g.fillStyle = "#fff";
+      g.fillRect(qx, y, qrBox, qrBox);
+      g.fillStyle = "#000";
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          if (matrix[r][c]) g.fillRect(qx + pad + c * scale, y + pad + r * scale, scale, scale);
+        }
+      }
+      g.fillStyle = C.ink;
+      g.font = `600 34px ${bodyFont}`;
+      g.fillText("Scan to open", IMG_M, y + qrBox / 2 - 44);
+      g.fillStyle = C.muted;
+      g.font = `30px ${bodyFont}`;
+      g.fillText("this schedule", IMG_M, y + qrBox / 2 + 4);
+    } else {
+      // QR ei käytettävissä (esim. linkki liian pitkä) -> linkki tekstinä.
+      g.fillStyle = C.muted;
+      g.font = `24px ${bodyFont}`;
+      g.fillText(fitText(location.href, IMG_W - 2 * IMG_M), IMG_M, y + 8);
+    }
+    return canvas;
+  }
+
+  async function exportImage() {
+    if (!selected.size) return;
+    syncUrl(); // varmista että linkki (ja siten QR) vastaa nykyistä valintaa
+    let matrix = null;
+    if (typeof qrEncode !== "undefined") {
+      try { matrix = qrEncode(location.href); } catch (e) { /* liian pitkä linkki */ }
+    }
+    const canvas = buildScheduleImage(matrix);
+    const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
+    if (!blob) { toast("Could not create the image"); return; }
+    const file = new File([blob], (activeFestival || "festival") + "-schedule.png", { type: "image/png" });
+    // Mobiilissa natiivi jakovalikko (kuten linkkijaossa); muuten PNG-lataus.
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: (myName ? myName + " — " : "") + `${DATA.festival} — My Schedule` });
+        return;
+      } catch (e) {
+        if (e && e.name === "AbortError") return; // käyttäjä perui jaon
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast("Image downloaded");
+  }
+
   // --- QR-jako: linkki QR-koodina (kätevä festarilla kasvokkain) ---
   // qrEncode tulee vendoroidusta qr.js:stä — toimii offline, ei CDN:ää.
   function showQr() {
@@ -1234,7 +1411,21 @@
     // epäonnistuu hiljaa esim. file://-protokollalla, mikä on ok). Rekisteröidään
     // ennen datan latausta, jotta offline-tuki asentuu vaikka lataus epäonnistuisi.
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("sw.js").catch(() => {});
+      navigator.serviceWorker.register("sw.js").then((reg) => {
+        // PWA-päivitysilmoitus: kun uusi service worker on asentunut vanhan
+        // tilalle (controller on olemassa = ei ensiasennus), näytetään pysyvä
+        // "App updated" -palkki, jonka Reload-nappi lataa sivun uudelleen.
+        // Sivua ei ladata automaattisesti — se voisi keskeyttää valintojen teon.
+        reg.addEventListener("updatefound", () => {
+          const w = reg.installing;
+          if (!w) return;
+          w.addEventListener("statechange", () => {
+            if (w.state === "installed" && navigator.serviceWorker.controller) {
+              $("updateBar").hidden = false;
+            }
+          });
+        });
+      }).catch(() => {});
     }
 
     try {
@@ -1285,6 +1476,8 @@
       render();
     };
     $("icsBtn").onclick = exportIcs;
+    $("imgBtn").onclick = exportImage;
+    $("updateReload").onclick = () => location.reload();
     $("qrBtn").onclick = showQr;
     $("qrClose").onclick = () => { $("qrModal").hidden = true; };
     $("qrModal").onclick = (e) => { if (e.target === $("qrModal")) $("qrModal").hidden = true; };

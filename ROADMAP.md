@@ -79,28 +79,37 @@ valmistuu tai järjestys muuttuu.
   ROADMAP.md:hen ja MAINTENANCE.md:hen; PITCH.md tuotu samalla
   versionhallintaan.
 
+### Deploy-automaatio, päivitysilmoitus ja kuvavienti
+
+- [x] **Cache-version automaattinen leimaus** — Azure-deploy-workflow stampaa
+  commitin SHA:n sw.js:n CACHE-vakioon jokaisessa deployssa. Käsin
+  ylläpidetty vakio ja PR-tarkistus säilytettiin tietoisesti varalle
+  (hostaus ilman workflowta).
+- [x] **sw.js:n ASSETS-listan generointi festivals.jsonista** SW:n
+  install-vaiheessa — uusi festari päätyy precacheen vaikka listan päivitys
+  unohtuisi. Kiinteä lista jäi pohjaksi/varalle, ja tuontityökalu pitää sen
+  yhä synkassa.
+- [x] **3. PWA-päivitysilmoitus** — pysyvä "App updated — Reload" -palkki,
+  kun uusi service worker on asentunut (ei automaattista uudelleenlatausta).
+- [x] **11. Kuvan vienti omasta aikataulusta** — "Share as image" -nappi My
+  timetablessa: 1080 px leveä pystykuva (PNG) teeman väreillä — festarin ja
+  aikataulun nimi, päivät keikkoineen (törmäykset ⚠-merkillä) ja alareunassa
+  QR-koodi, josta aikataulun saa auki. Mobiilissa natiivi jakovalikko,
+  muuten lataus.
+
 ## Tekemättä: ylläpidon helpottaminen
 
-- [ ] **Cache-version automaattinen leimaus** — workflow stampaa versionumeron
-  (esim. git-SHA) sw.js:ään deployssa, jolloin käsin bumppaus jää kokonaan
-  pois. Kevyempi vaihtoehto (CI-varoitus) on jo tehty.
-- [ ] **sw.js:n ASSETS-listan generointi festivals.jsonista** SW:n
-  install-vaiheessa — yksi käsin synkattava lista vähemmän.
 - [ ] **Siivous:** `/workspace/Tuska-copy` (repon ulkopuolinen vanha kopio)
   poistettavaksi, jos ei enää tarpeen.
 
 ## Tekemättä: uudet ominaisuudet
 
-- [ ] **3. PWA-päivitysilmoitus** — "Uusi versio saatavilla" -toast, kun uusi
-  service worker on asentunut.
 - [ ] **4. Lavasuodatin** päiväsuodattimen rinnalle. (Arvo pienentynyt:
   By stage -ryhmittely ja haku kattavat suurimman osan tarpeesta.)
 - [ ] **8. FI/EN-kielivalinta** — käyttöliittymä on nyt englanniksi, vaikka
   festarit ovat suomalaisia.
 - [ ] **10. Artistilinkit** (Spotify/YouTube-haku tms.) datan valinnaisena
   kenttänä.
-- [ ] **11. Kuvan vienti omasta aikataulusta** — someen jakoon; korvaa
-  nykyisen kuvakaappauskäytännön.
 
 ## Tiedossa olevat rajoitteet (ei työn alla)
 
