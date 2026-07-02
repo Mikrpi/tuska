@@ -24,6 +24,24 @@ valmistuu tai järjestys muuttuu.
   suodatin- ja välilehtinapeilla aria-pressed, toast on aria-live-alue,
   näkyvä fokusrengas.
 
+### Ominaisuudet 1, 2, 5, 7 ja 9 (commit `3f533be`)
+
+- [x] **1. Artistihaku/suodatus nimellä** — hakukenttä suodattaa pääaikataulua;
+  etsii myös menneiltä päiviltä, tyhjästä hausta oma viesti.
+- [x] **2. Kalenterivienti (ICS)** — "Add to calendar (.ics)" -nappi My
+  timetable -paneelissa; rakentuu selaimessa ilman backendia, keskiyön yli
+  menevät keikat oikealle kalenteripäivälle.
+- [x] **5. Kaverivertailu** — eroava jaettu linkki avaa vertailutilan
+  (korvasi confirm()-kyselyn): kaverin valinnat katkoviivalla, yhteiset
+  "both"-merkinnällä, "Use these picks" / "Done comparing" -napit.
+- [x] **7. Aikataulun nimeäminen** — nimi kulkee linkin hashissa (&n=...),
+  säilyy festarikohtaisesti; renderöidään vain textContent-kautta
+  (XSS-turvallisuus dokumentoitu MAINTENANCE.md:ssä).
+- [x] **9. QR-koodi jakamiseen** — oma riippuvuudeton QR-generaattori
+  (qr.js, byte mode, ECC M, versiot 1–10), koska offline-periaate estää
+  CDN:n; oikeellisuus varmistettu testien itsenäisellä dekooderilla.
+  *Suositus: skannaa kerran oikealla puhelimella ennen julkaisua.*
+
 ### Validaattori, testit ja CI (commit `494c6dd`)
 
 - [x] **`scripts/validate-data.js`** — tarkistaa festivals.jsonin, kaikki
@@ -54,31 +72,13 @@ valmistuu tai järjestys muuttuu.
 
 ## Tekemättä: uudet ominaisuudet
 
-Suuri hyöty, pieni työ:
-
-- [ ] **1. Artistihaku/suodatus nimellä** — isoissa ohjelmissa (Ruisrock,
-  99 actia) selaaminen on työlästä.
-- [ ] **2. Kalenterivienti (ICS)** — "Lataa omat kalenteriin" -nappi; toimii
-  ilman backendia, puhelimen kalenteri hoitaa muistutukset.
 - [ ] **3. PWA-päivitysilmoitus** — "Uusi versio saatavilla" -toast, kun uusi
   service worker on asentunut.
 - [ ] **4. Lavasuodatin** päiväsuodattimen rinnalle.
-
-Suuri hyöty, keskikokoinen työ:
-
-- [ ] **5. Kaverivertailu** — kaverin linkki avautuu vertailutilassa: omat ja
-  kaverin valinnat rinnakkain, yhteiset korostettuna. Korvaa samalla
-  nykyisen confirm()-kyselyn tyylikkäämmällä ratkaisulla.
 - [ ] **6. Ruudukkonäkymä** — klassinen festariaikataulu (lavat sarakkeina,
   aika riveinä) kolmanneksi näkymäksi; clashbar-aikajana on jo puoliksi tätä.
-- [ ] **7. Aikataulun nimeäminen** ("Mikon lauantai") linkkiin mukaan —
-  HUOM: MAINTENANCE.md:n XSS-varoitus, vapaa teksti vain textContent-kautta.
 - [ ] **8. FI/EN-kielivalinta** — käyttöliittymä on nyt englanniksi, vaikka
   festarit ovat suomalaisia.
-
-Isommat / myöhemmin:
-
-- [ ] **9. QR-koodi jakamiseen** — kätevä festarilla kasvokkain.
 - [ ] **10. Artistilinkit** (Spotify/YouTube-haku tms.) datan valinnaisena
   kenttänä.
 - [ ] **11. Kuvan vienti omasta aikataulusta** — someen jakoon; korvaa
