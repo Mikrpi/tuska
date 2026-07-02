@@ -62,6 +62,7 @@
     .filters:last-of-type { margin-bottom:14px; }
     .filters button.active { background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:bold; }
     .filters .lbl { color:var(--muted); font-size:12px; margin-right:2px; }
+    .lbl-short { display:none; } /* mobiilin lyhyt päivänimi, ks. media query */
     .st-inline { color:var(--muted); font-size:11px; font-weight:normal; }
     .count { color:var(--muted); font-size:13px; }
     .layout { display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start; }
@@ -146,6 +147,12 @@
       .act { padding:11px 12px; }       /* isompi kosketuskohta peukalolle */
       .mine-item { padding:9px 10px; font-size:14px; }
       #searchBox { flex-basis:100%; max-width:100%; } /* koko rivin levyinen hakukenttä */
+      /* Päivävalinta yhdelle riville: napit jakavat leveyden ja käyttävät
+         lyhyttä päivänimeä (All/Fri/Sat/...). */
+      #filters { flex-wrap:nowrap; }
+      #filters button { flex:1 1 0; min-width:0; padding:8px 4px; text-align:center; }
+      #filters .lbl-full { display:none; }
+      #filters .lbl-short { display:inline; }
       .toast { bottom:84px; }
       .tabbar { display:flex; position:fixed; left:0; right:0; bottom:0; z-index:60;
         background:var(--surface); border-top:1px solid var(--line); }
@@ -549,9 +556,18 @@
     );
     for (const o of dayOpts) {
       const b = document.createElement("button");
-      b.textContent = o.label;
+      // Kaksi tekstivarianttia: täysi nimi työpöydällä, 3-kirjaiminen mobiilissa
+      // (CSS valitsee) -> päivärivi mahtuu kapeallakin näytöllä yhdelle riville.
+      const full = document.createElement("span");
+      full.className = "lbl-full";
+      full.textContent = o.label;
+      const short = document.createElement("span");
+      short.className = "lbl-short";
+      short.textContent = o.id === "" ? "All" : o.label.slice(0, 3);
+      b.append(full, short);
       if (dayFilter === o.id) b.className = "active";
       b.setAttribute("aria-pressed", dayFilter === o.id ? "true" : "false");
+      b.setAttribute("aria-label", o.label); // ruudunlukijalle aina täysi nimi
       b.onclick = () => { dayFilter = o.id; render(); };
       wrap.appendChild(b);
     }
