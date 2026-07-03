@@ -70,8 +70,8 @@ valmistuu tai järjestys muuttuu.
 - [x] **6. Ruudukkonäkymä** — kolmas näkymä (Grid): lavat sarakkeina, aika
   riveinä, keikat aikajanalle sijoitettuina lohkoina; valinta, törmäys-,
   live- ja vertailumerkinnät sekä "nyt"-viiva kuten muissakin näkymissä.
-  Vain leveille näytöille — kapealla nappi on piilossa ja tallennettu
-  grid-valinta putoaa lavajaotteluun.
+  Toimii myös kapealla ruudulla: ruudukko vierii omassa paneelissaan ja
+  aikapalsta sekä lavaotsikot pysyvät paikallaan (sticky).
 - [x] **Käyttöohje loppukäyttäjille** — ?-nappi työkalupalkissa avaa
   "How to use" -dialogin (valinta, linkki tallenteena, vertailu, ICS,
   offline). Staattista sisältöä index.html:ssä, kulkee PWA:n mukana offline.

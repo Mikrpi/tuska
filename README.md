@@ -11,7 +11,8 @@ backup) and never leaves their browser.
 ## Features
 
 - Personal timetable with overlap (clash) warnings and a live "NOW" marker
-- Three schedule views: by stage, by time, and a grid (stages × time; wide screens)
+- Three schedule views: by stage, by time, and a grid (stages × time; on
+  phones the grid scrolls in its own pane with sticky time/stage headers)
 - Share via link, native share sheet or QR code — opening a friend's link
   starts a comparison instead of overwriting your own picks
 - Calendar export (`.ics`), artist search, schedule naming

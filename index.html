@@ -150,8 +150,11 @@
     @media (prefers-reduced-motion: reduce) { .toast { transition:none; } }
 
     /* Ruudukkonäkymä: lavat sarakkeina, aika riveinä — klassinen festariaikataulu.
-       Vain leveälle näytölle; kapealla Grid-nappi on piilossa (ks. media query). */
-    .grid { display:grid; gap:0 6px; margin-top:6px; }
+       Kapealla ruudulla ruudukko rullaa kääreensä sisällä molempiin suuntiin;
+       aikapalsta ja lavaotsikot pysyvät paikallaan (sticky, ks. media query). */
+    .gridwrap { margin-top:6px; }
+    .grid { display:grid; gap:0 6px;
+      grid-template-columns:34px repeat(var(--gcols), minmax(0, 1fr)); }
     .ghead { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
       color:var(--muted); padding:2px 4px 7px; text-align:center; overflow:hidden;
       text-overflow:ellipsis; white-space:nowrap; }
@@ -214,9 +217,19 @@
         background:var(--accent); color:var(--on-accent); font-weight:bold; border:none;
         border-radius:22px; padding:11px 17px; box-shadow:0 3px 12px rgba(0,0,0,.45); }
       .fab[hidden] { display:none; }
-      /* Ruudukkonäkymä on työpöytäominaisuus: 3–5 lavasaraketta ei mahdu
-         luettavasti kapealle ruudulle, joten nappi piilotetaan. */
-      #viewmode .grid-only { display:none; }
+      /* Ruudukko kapealla ruudulla: kääre rullaa molempiin suuntiin ja lava-
+         sarakkeilla on minimileveys. Aikapalsta (vasen) ja lavaotsikot (ylä)
+         pysyvät paikallaan; box-shadow peittää palstavälin, ettei sisältö
+         näy sen läpi sticky-elementin ohi vieritettäessä. */
+      .gridwrap { overflow:auto; max-height:70dvh; overscroll-behavior:contain;
+        border:1px solid var(--line); border-radius:8px; padding:0 6px 6px 0; }
+      .grid { grid-template-columns:34px repeat(var(--gcols), minmax(132px, 1fr)); }
+      .ghead { position:sticky; top:0; z-index:3; background:var(--bg);
+        box-shadow:6px 0 0 var(--bg); }
+      .gcorner { position:sticky; top:0; left:0; z-index:4; background:var(--bg);
+        box-shadow:6px 0 0 var(--bg); }
+      .ggutter { position:sticky; left:0; z-index:2; background:var(--bg);
+        box-shadow:6px 0 0 var(--bg); }
     }
   </style>
 </head>
@@ -639,8 +652,8 @@
     setTab("schedule");
     render();
     requestAnimationFrame(() => {
-      const t = document.querySelector(".act.live")
-        || document.querySelector("#today-anchor .act:not(.past)")
+      const t = document.querySelector(".act.live, .gact.live")
+        || document.querySelector("#today-anchor .act:not(.past), #today-anchor .gact:not(.past)")
         || $("today-anchor");
       if (t) t.scrollIntoView({ behavior: "smooth", block: "center" });
     });
@@ -682,7 +695,6 @@
     for (const o of [{ id: "stage", label: "By stage" }, { id: "time", label: "By time" }, { id: "grid", label: "Grid" }]) {
       const b = document.createElement("button");
       b.textContent = o.label;
-      if (o.id === "grid") b.classList.add("grid-only"); // piilossa kapealla näytöllä (CSS)
       if (viewMode === o.id) b.classList.add("active");
       b.setAttribute("aria-pressed", viewMode === o.id ? "true" : "false");
       b.onclick = () => { viewMode = o.id; render(); };
@@ -777,10 +789,12 @@
 
     const wrap = document.createElement("div");
     wrap.className = "grid";
-    wrap.style.gridTemplateColumns = `34px repeat(${stages.length}, 1fr)`;
+    wrap.style.setProperty("--gcols", stages.length); // sarakemäärä CSS:lle
 
-    // Otsikkorivi: tyhjä kulma + lavojen nimet.
-    wrap.appendChild(document.createElement("div"));
+    // Otsikkorivi: kulma (mobiilissa sticky molempiin suuntiin) + lavojen nimet.
+    const corner = document.createElement("div");
+    corner.className = "gcorner";
+    wrap.appendChild(corner);
     for (const s of stages) {
       const h = document.createElement("div");
       h.className = "ghead";
@@ -833,7 +847,11 @@
       if (nowTop) col.appendChild(nowMark());
       wrap.appendChild(col);
     }
-    return wrap;
+    // Kääre hoitaa kapealla ruudulla vierityksen molempiin suuntiin (CSS).
+    const scroller = document.createElement("div");
+    scroller.className = "gridwrap";
+    scroller.appendChild(wrap);
+    return scroller;
   }
 
   function renderDays(clash) {
@@ -842,10 +860,7 @@
     const now = nowDate();
     const allPast = eventAllPast(now);
     const searching = !!searchQuery;
-    // Grid on työpöytänäkymä: kapealla ruudulla (jossa Grid-nappi on piilossa)
-    // tallennettu grid-valinta pudotetaan lavajaotteluun, ei tyhjään näkymään.
-    const mode = (viewMode === "grid" && window.matchMedia("(max-width: 640px)").matches)
-      ? "stage" : viewMode;
+    const mode = viewMode;
 
     // "Näytä menneet päivät" -nappi vain kun selataan kaikkia päiviä ja menneitä
     // päiviä on olemassa. Jos koko tapahtuma on ohi, nappia ei näytetä (kaikki
@@ -1508,10 +1523,6 @@
       if (!$("qrModal").hidden) $("qrModal").hidden = true;
       if (!$("helpModal").hidden) { $("helpModal").hidden = true; $("helpBtn").focus(); }
     });
-    // Grid-näkymä putoaa kapealla ruudulla lavajaotteluun — renderöidään
-    // uudelleen kun leveysraja ylittyy (esim. puhelimen kääntö, ikkunan venytys).
-    const mq = window.matchMedia("(max-width: 640px)");
-    if (mq.addEventListener) mq.addEventListener("change", render);
     $("shareBtn").onclick = share;
     $("clearBtn").onclick = () => {
       if (!selected.size) return;
