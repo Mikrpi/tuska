@@ -9,7 +9,7 @@
  * YLLÄPITO: nosta CACHE-versionumeroa aina kun julkaiset muutoksen, jotta vanha
  * välimuisti tyhjennetään asennuksen yhteydessä (esim. "tuska-v3").
  */
-const CACHE = "tuska-v19";
+const CACHE = "tuska-v20";
 const ASSETS = [
   "./",
   "./index.html",
@@ -27,22 +27,31 @@ const ASSETS = [
 
 self.addEventListener("install", (e) => {
   e.waitUntil((async () => {
-    // Datatiedostojen lista generoidaan festivals.jsonista, jolloin uusi
-    // festari päätyy precacheen vaikka ASSETS-listan päivitys unohtuisi.
-    // Kiinteä lista yllä jää pohjaksi ja varalle (esim. jos rekisterin haku
-    // epäonnistuu asennushetkellä).
-    let assets = ASSETS;
+    const c = await caches.open(CACHE);
+    // Kiinteä, käsin ylläpidetty lista precachetaan all-or-nothing: jos se ei
+    // onnistu, asennuksen kuuluukin epäonnistua.
+    await c.addAll(ASSETS);
+    // Datatiedostojen lista generoidaan lisäksi festivals.jsonista, jolloin
+    // uusi festari päätyy precacheen vaikka ASSETS-listan päivitys unohtuisi.
+    // Nämä lisätään yksitellen ja virhesietoisesti: yksi rekisteriin listattu
+    // mutta deployamatta jäänyt (404) datatiedosto ei saa kaataa koko
+    // asennusta — muuten yksikään uusi SW-versio ei asentuisi ja käyttäjät
+    // jäisivät pysyvästi vanhaan app-shelliin.
     try {
       const reg = await (await fetch("./festivals.json", { cache: "no-cache" })).json();
       const dataFiles = (reg.festivals || [])
         .map((f) => f && typeof f.data === "string" ? "./" + f.data : null)
-        .filter(Boolean);
-      assets = [...new Set([...ASSETS, ...dataFiles])];
-    } catch (err) { /* offline tms. — käytetään kiinteää listaa */ }
-    const c = await caches.open(CACHE);
-    await c.addAll(assets);
-    await self.skipWaiting();
+        .filter(Boolean)
+        .filter((u) => !ASSETS.includes(u));
+      await Promise.allSettled(dataFiles.map((u) => c.add(u)));
+    } catch (err) { /* offline tms. — kiinteä lista riittää */ }
   })());
+});
+
+// Päivityspalkin "Reload" pyytää odottavaa workeria aktivoitumaan; sivu lataa
+// itsensä uudelleen vasta controllerchange-tapahtumasta (ks. index.html).
+self.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (e) => {

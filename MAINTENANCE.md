@@ -257,15 +257,21 @@ have poor signal). A service worker (`sw.js`) caches the app shell and data:
   never replace a working offline copy.
 
 The install-time precache list is **generated from `festivals.json`**: the service
-worker fetches the registry during install and adds every festival's data file to
-the static core list. The hand-maintained `ASSETS` array in `sw.js` remains as the
-base (and as a fallback if the registry fetch fails at install time), and the
-import tool still keeps it in sync — but a festival missing from `ASSETS` is no
-longer invisible offline.
+worker fetches the registry during install and adds every festival's data file
+**individually and fault-tolerantly** on top of the static core list — a data file
+that is listed in the registry but missing from the deploy (404) is skipped
+instead of failing the whole install. The hand-maintained `ASSETS` array in
+`sw.js` remains as the base (precached all-or-nothing, and used alone if the
+registry fetch fails at install time), and the import tool still keeps it in
+sync — but a festival missing from `ASSETS` is no longer invisible offline.
 
-When a **new version** of the app has installed in the background, the page shows a
-persistent **"App updated — Reload"** bar (wired in `init()`'s service-worker
-registration); the page is never reloaded automatically.
+When a **new version** of the app has installed in the background, it stays
+**waiting** (no `skipWaiting()` at install) and the page shows a persistent
+**"App updated — Reload"** bar (wired in `init()`'s service-worker registration).
+The old version keeps running untouched until the user clicks **Reload**, which
+posts a `SKIP_WAITING` message to the waiting worker and reloads the page on
+`controllerchange` — so the page never runs old JS against the new version's
+cache, and is never reloaded automatically.
 
 ### Cache version on release: stamped automatically
 

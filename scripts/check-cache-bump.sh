@@ -22,7 +22,9 @@ fi
 
 app_changed=$(echo "$changed" | grep -E '^(index\.html|sw\.js|manifest\.webmanifest|icon-192\.png|icon-512\.png|apple-touch-icon\.png)$' || true)
 json_changed=$(echo "$changed" | grep -E '^(festivals\.json|data-.*\.json)$' || true)
-bumped=$(git diff "$BASE"...HEAD -- sw.js | grep -c '^+const CACHE' || true)
+# Salli const/let/var ja välilyöntivaihtelu, ettei vakion muotoilun muutos
+# tee tarkistuksesta hiljaa sokeaa (sama syy kuin deploy-workflown grep-vahdissa).
+bumped=$(git diff "$BASE"...HEAD -- sw.js | grep -cE '^\+\s*(const|let|var)\s+CACHE\s*=' || true)
 
 if [ -n "$app_changed" ] && [ "$bumped" -eq 0 ]; then
   echo "ERROR: app files changed but the CACHE constant in sw.js was not bumped:"

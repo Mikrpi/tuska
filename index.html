@@ -1098,16 +1098,22 @@
     return lines.join("\r\n") + "\r\n";
   }
 
-  function exportIcs() {
-    const blob = new Blob([buildIcs()], { type: "text/calendar;charset=utf-8" });
+  // Blobin lataus tiedostona väliaikaisen <a download> -linkin kautta.
+  // Revoke viiveellä, jotta selain ehtii aloittaa latauksen (iOS Safari).
+  function downloadBlob(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = (activeFestival || "festival") + "-schedule.ics";
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function exportIcs() {
+    const blob = new Blob([buildIcs()], { type: "text/calendar;charset=utf-8" });
+    downloadBlob(blob, (activeFestival || "festival") + "-schedule.ics");
   }
 
   // --- Kuvavienti: oma aikataulu somejakoon sopivana pystykuvana (PNG) ---
@@ -1259,14 +1265,7 @@
         if (e && e.name === "AbortError") return; // käyttäjä perui jaon
       }
     }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = file.name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadBlob(blob, file.name);
     toast("Image downloaded");
   }
 
@@ -1412,19 +1411,38 @@
     // ennen datan latausta, jotta offline-tuki asentuu vaikka lataus epäonnistuisi.
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").then((reg) => {
-        // PWA-päivitysilmoitus: kun uusi service worker on asentunut vanhan
-        // tilalle (controller on olemassa = ei ensiasennus), näytetään pysyvä
-        // "App updated" -palkki, jonka Reload-nappi lataa sivun uudelleen.
-        // Sivua ei ladata automaattisesti — se voisi keskeyttää valintojen teon.
-        reg.addEventListener("updatefound", () => {
-          const w = reg.installing;
+        // PWA-päivitysilmoitus: kun uusi service worker on asentunut ja jäänyt
+        // odottamaan (controller on olemassa = ei ensiasennus), näytetään pysyvä
+        // "App updated" -palkki. Vanha versio jatkaa ehjänä, kunnes käyttäjä
+        // painaa Reload: nappi pyytää odottavaa workeria aktivoitumaan
+        // (SKIP_WAITING-viesti sw.js:lle) ja sivu ladataan uudelleen vasta kun
+        // uusi worker on ottanut ohjauksen (controllerchange) — näin sivu ei
+        // koskaan aja vanhaa JS:ää uuden workerin välimuistia vasten, eikä
+        // lataus keskeytä valintojen tekoa automaattisesti.
+        const showUpdateBar = (w) => {
+          $("updateBar").hidden = false;
+          $("updateReload").onclick = () => {
+            let reloading = false;
+            navigator.serviceWorker.addEventListener("controllerchange", () => {
+              if (reloading) return;
+              reloading = true;
+              location.reload();
+            });
+            w.postMessage({ type: "SKIP_WAITING" });
+          };
+        };
+        const watchInstalling = (w) => {
           if (!w) return;
           w.addEventListener("statechange", () => {
-            if (w.state === "installed" && navigator.serviceWorker.controller) {
-              $("updateBar").hidden = false;
-            }
+            if (w.state === "installed" && navigator.serviceWorker.controller) showUpdateBar(w);
           });
-        });
+        };
+        // Päivitys voi olla jo odottamassa tai asentumassa rekisteröintihetkellä
+        // (esim. sivu ladattiin uudelleen kesken asennuksen) — pelkkä
+        // updatefound-kuuntelija ei silloin koskaan laukeaisi.
+        if (reg.waiting && navigator.serviceWorker.controller) showUpdateBar(reg.waiting);
+        watchInstalling(reg.installing);
+        reg.addEventListener("updatefound", () => watchInstalling(reg.installing));
       }).catch(() => {});
     }
 
@@ -1477,7 +1495,8 @@
     };
     $("icsBtn").onclick = exportIcs;
     $("imgBtn").onclick = exportImage;
-    $("updateReload").onclick = () => location.reload();
+    // updateReload-napin käsittelijä asetetaan SW-rekisteröinnissä (init),
+    // koska se tarvitsee viittauksen odottavaan workeriin.
     $("qrBtn").onclick = showQr;
     $("qrClose").onclick = () => { $("qrModal").hidden = true; };
     $("qrModal").onclick = (e) => { if (e.target === $("qrModal")) $("qrModal").hidden = true; };
