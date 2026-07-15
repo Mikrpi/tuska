@@ -9,7 +9,7 @@
  * YLLÄPITO: nosta CACHE-versionumeroa aina kun julkaiset muutoksen, jotta vanha
  * välimuisti tyhjennetään asennuksen yhteydessä (esim. "tuska-v3").
  */
-const CACHE = "tuska-v21";
+const CACHE = "tuska-v22";
 const ASSETS = [
   "./",
   "./index.html",
@@ -19,6 +19,7 @@ const ASSETS = [
   "./data-ilosaarirock2026.json",
   "./data-tuska2026.json",
   "./data-hellsinki2026.json",
+  "./data-tikkurila2026.json",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
