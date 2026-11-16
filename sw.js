@@ -30,6 +30,7 @@ const ASSETS = [
   "./data-ilosaarirock2026.json",
   "./data-tuska2026.json",
   "./data-hellsinki2026.json",
+  "./data-tikkurila2026.json",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
