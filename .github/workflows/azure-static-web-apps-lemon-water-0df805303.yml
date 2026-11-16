@@ -10,27 +10,30 @@ on:
       - main
 
 jobs:
+  # Datan validointi ja kaikki testit (validate.yml). Deploy odottaa tätä:
+  # rikkinäinen data tai kaatuva testi ei koskaan päädy tuotantoon.
+  validate:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    uses: ./.github/workflows/validate.yml
+
   build_and_deploy_job:
+    needs: validate
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: true
           lfs: false
-      # Leimaa service workerin CACHE-versio commitin SHA:lla, jolloin jokainen
-      # deploy tyhjentää selainten vanhan välimuistin automaattisesti eikä
-      # sw.js:n versiovakiota tarvitse muistaa nostaa käsin. Käsin ylläpidetty
-      # vakio jää tiedostoon pohjaksi/varalle (esim. hostaus ilman tätä
+      # Kokoaa julkaistavat tiedostot _site-hakemistoon (ei testejä, skriptejä
+      # eikä dokumentaatiota) ja leimaa sen sw.js:n CACHE-version commitin
+      # SHA:lla, jolloin jokainen deploy tyhjentää selainten vanhan välimuistin
+      # automaattisesti eikä versiovakiota tarvitse muistaa nostaa käsin. Käsin
+      # ylläpidetty vakio jää repoon pohjaksi/varalle (esim. hostaus ilman tätä
       # workflowta) — ks. MAINTENANCE.md.
-      - name: Stamp service worker cache version with the commit SHA
-        run: |
-          sed -i "s/^const CACHE = \"[^\"]*\";/const CACHE = \"tuska-${GITHUB_SHA::8}\";/" sw.js
-          # Varmista että leima todella päätyi tiedostoon: sed ei epäonnistu
-          # vaikka mikään rivi ei osuisi (esim. jos vakion muotoilu muuttuu),
-          # ja silloin deploy lähtisi hiljaa vanhalla cache-versiolla.
-          grep "tuska-${GITHUB_SHA::8}" sw.js
+      - name: Assemble the site and stamp the service worker cache version
+        run: bash scripts/build-site.sh _site "${GITHUB_SHA::8}"
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -40,9 +43,12 @@ jobs:
           action: "upload"
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
-          app_location: "/" # App source code path
+          # Valmiiksi koottu sivusto (scripts/build-site.sh): ei Oryx-buildia,
+          # julkaistaan _site sellaisenaan.
+          app_location: "_site" # App source code path
           api_location: "" # Api source code path - optional
-          output_location: "." # Built app content directory - optional
+          output_location: "" # Built app content directory - optional
+          skip_app_build: true
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:

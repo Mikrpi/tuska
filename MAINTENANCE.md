@@ -24,11 +24,23 @@ festival) as a backup, and the last-used festival to `festival-active`, so both 
 opening the app without a link (e.g. from a home-screen icon).
 
 The selection hash is a bitmask over **one festival's** `acts` array, so it is only
-meaningful together with the matching `?f=`. The code carries the act count as a
-prefix (`#s=<count>.<mask>`, e.g. `#s=60.QQAI…`): if the line-up changes after a link
-was made, the count no longer matches and the app rejects the code with a notice
-instead of silently selecting the wrong artists. Prefix-less codes (links and
-localStorage backups from older versions) are still accepted without the check.
+meaningful together with the matching `?f=`. The code starts with a line-up
+identifier — the act count and a **fingerprint** of the ordered (day, name) list
+(`#s=<count>-<fingerprint>.<mask>`, e.g. `#s=60-1x9kq3a.QQAI…`). If acts are added,
+removed or reordered after a link was made, the fingerprint no longer matches and
+the app rejects the code with a notice instead of silently selecting the wrong
+artists. Time and stage changes (and name capitalisation) don't affect the
+fingerprint, so links survive ordinary schedule updates. Older codes are still
+accepted: `<count>.<mask>` (count check only) and prefix-less `<mask>` (no check).
+
+The **localStorage backup stores the picks by name** as well
+(`{"v":2,"code":…,"picks":[{day,name,stage,start},…]}`), so a visitor's *own*
+picks survive any line-up change: on load they are re-matched to the current acts
+by day + name (case-insensitive; for an artist with two sets on the same day, the
+nearest start time). Picks whose act is gone are dropped with a notice naming
+them. A replacement act in the same time slot never inherits a pick. Old
+backups (a bare code string) are still read; one that no longer fits the line-up
+can't be re-matched and is reported as not restorable.
 When you switch festivals from the dropdown the app reloads to `?f=<new>` **without**
 the hash, then restores that festival's own saved picks.
 
@@ -77,9 +89,11 @@ precache list (bumping `CACHE`), and finishes by running `validate-data.js`.
 For an **existing festival** (schedule change) it preserves the published act
 order and ids — changed times/stages are updated in place, new acts are appended
 to the end (critical rule 1 below), and acts missing from the input are kept
-unless you pass `--prune`. It reports when the act count changes, since that
-invalidates already-shared links (with a notice to the user). `--dry-run` shows
-what would happen without writing anything.
+unless you pass `--prune`. Pruning removes them and moves every later act to a
+new id. It reports when the act list changes (acts added, removed or moved), since
+that invalidates already-shared links: the app rejects them with a notice, and
+visitors' own saved picks are re-matched by name. `--dry-run` shows what would
+happen without writing anything.
 
 Doing the same **by hand** is two steps, no code changes needed as long as the
 structure and critical rules below stay intact:
@@ -134,11 +148,13 @@ re-skins the whole app and updates the browser `theme-color`.
 1. **`acts[].id` = the array index: `0, 1, 2, … N-1`, contiguous.**
    The shareable hash is a bitmask where bit `id` = whether that act is selected.
    If the numbering has gaps or does not start at zero, shared links break.
-   The **number** of acts may change freely — old links made against a different
-   act count are then detected (via the count prefix in the hash) and rejected
-   with a notice rather than selecting the wrong artists. Note that **reordering
-   acts without changing the count** is still invisible to this check, so avoid
-   reshuffling a published line-up; append new acts at the end.
+   The line-up may change freely — links made against a different act list are
+   detected (via the line-up fingerprint in the hash) and rejected with a notice
+   rather than selecting the wrong artists, and visitors' own picks are re-matched
+   by name. Still, every such change invalidates all shared links, so prefer
+   **appending new acts at the end** over reshuffling a published line-up, and
+   keep a cancelled act in place (don't `--prune`) if old links matter more than
+   a tidy list.
 
 2. **Each day's `label` must contain a date in `d.m.yyyy` format** (e.g. `"Friday 25.6.2027"`).
    The past/live/upcoming logic parses the date from here. Don't change the format.
@@ -207,16 +223,20 @@ parameter, the browser's real clock is used.
 
 - **A shared link is only meaningful with its `?f=`.** The selection hash is a bitmask
   over one festival's `acts`, so `?f=` and `#s=` belong together. Modern links carry
-  both, plus the act count that detects a changed line-up. **Legacy hash-only links**
+  both, plus the line-up fingerprint that detects a changed line-up. **Legacy hash-only links**
   (from before multi-festival support, no `?f=`, no count prefix) open against the
   *default* festival and would select the wrong artists — those old links are stale
   anyway, and they carry no count so the mismatch cannot be detected. The fix if ever
   needed: such links should append `?f=tuska2026`.
   Note: the `localStorage` backup is keyed per festival (`festival-picks:<id>`), so
   different festivals' saved selections do **not** collide.
-- **Reordering a published line-up breaks old links undetectably** if the act count
-  stays the same (the bitmask indices shift but the count check passes). Append new
-  acts to the end of the array instead of inserting in the middle.
+- **Links made before the fingerprint** (`#s=<count>.<mask>`, all 2026 festivals)
+  only carry the act count: for them, a line-up change that keeps the count (e.g.
+  `--prune` + an added act, or a reorder) still goes undetected. Links made since
+  carry the fingerprint and are always checked.
+- **A renamed act invalidates shared links** (the name is part of the fingerprint),
+  and a visitor's own pick of it is dropped with a notice — a spelling fix and a
+  replacement act are indistinguishable, so the app plays safe.
 
 ---
 
@@ -251,11 +271,23 @@ have poor signal). A service worker (`sw.js`) caches the app shell and data:
 
 - **All `*.json`** (`festivals.json` and the `data-<id>.json` files) use a
   **network-first** strategy — online visitors always get the latest line-up (including
-  last-minute corrections); offline falls back to the last cached copy.
-- **Everything else** (HTML, icons) uses **cache-first with background refresh** —
+  last-minute corrections); offline falls back to the last cached copy. If the
+  network doesn't answer within **3 seconds** (`NET_TIMEOUT_MS`) and a cached copy
+  exists, the cached copy is used right away and the request finishes in the
+  background, refreshing the cache for next time. A connection that looks alive but
+  delivers nothing (common on festival grounds) must not stall startup. The page
+  shows "Loading schedule…" meanwhile (and a "still loading" hint after 8 s).
+- **Opening the app** (a navigation to the app's root or `index.html`) always gets the
+  cached **app shell regardless of the query string**. The page URL always carries
+  `?f=…` (and sometimes `?now=…`), so without this, offline opening would only work
+  for the exact URL once loaded online — switching festivals or opening a friend's
+  link offline would fail. The shell is cached under `./` (never a redirected response).
+- **Everything else** (`qr.js`, icons) uses **cache-first with background refresh** —
   instant load, works with no connection.
 - Only **successful (2xx) responses** are cached — an error page from the server can
   never replace a working offline copy.
+
+These paths are covered by `tests/sw.test.js`.
 
 The install-time precache list is **generated from `festivals.json`**: the service
 worker fetches the registry during install and adds every festival's data file
@@ -277,7 +309,8 @@ cache, and is never reloaded automatically.
 ### Cache version on release: stamped automatically
 
 The Azure deploy workflow (`.github/workflows/azure-static-web-apps-*.yml`)
-**stamps the `CACHE` constant in `sw.js` with the commit SHA on every deploy**, so
+**stamps the `CACHE` constant in `sw.js` with the commit SHA on every deploy**
+(`scripts/build-site.sh _site <sha>`, applied to the deployed copy only), so
 production users always get a fresh cache without anyone remembering to bump the
 version by hand.
 
@@ -293,9 +326,11 @@ without offline caching.
 
 ## Validation, tests and CI
 
-Three checks run automatically in GitHub Actions (`.github/workflows/validate.yml`)
-on every push to `main` and every pull request. All of them also run locally with
-plain Node, no dependencies to install:
+The checks below run in GitHub Actions (`.github/workflows/validate.yml`) as the
+**first job of the deploy workflow**, on every push to `main` and every pull
+request — the deploy job only runs if they all pass, so broken data or a failing
+test never reaches production. All of them also run locally with plain Node, no
+dependencies to install:
 
 - **`node scripts/validate-data.js`** — validates `festivals.json`, every
   `data-<id>.json` (all the "Critical rules" above: contiguous ids, date in the day
@@ -303,12 +338,19 @@ plain Node, no dependencies to install:
   midnight, plus same-stage overlaps and orphan data files) and the `sw.js` ASSETS
   precache list. Run this after every data edit.
 - **`node tests/selection.test.js`** — unit tests for the share-link
-  encode/decode/restore logic. The app script is extracted straight from
+  encode/decode/restore logic, the line-up fingerprint and re-matching own picks
+  after a line-up change. The app script is extracted straight from
   `index.html` and run in a sandbox, so the tests exercise the shipped code.
   Run this after changing the selection/URL logic in `index.html`.
 - **`node tests/import.test.js`** — unit tests for the import tool's parsing,
-  merging (act id stability) and registration helpers. Run this after changing
-  `scripts/import-data.js`.
+  merging (act id stability, moved-id reporting) and registration helpers. Run
+  this after changing `scripts/import-data.js`.
+- **`node tests/qr.test.js`** — decodes `qr.js` output with an independent reader.
+- **`node tests/sw.test.js`** — runs `sw.js` in a sandbox with fake caches, network
+  and timers: offline navigation with any query, JSON timeout/fallback, what gets
+  cached, install. Run this after changing `sw.js`.
+- **`bash scripts/build-site.sh _site`** — assembles the deployable site (see
+  "Deployment") and checks that every `sw.js` ASSETS file is part of it.
 - **`scripts/check-cache-bump.sh <base-ref>`** (pull requests only in CI) — fails
   the PR if app-shell files (`index.html`, `sw.js`, manifest, icons) changed
   without bumping the `CACHE` constant in `sw.js`. A `*.json`-only change passes
@@ -317,7 +359,13 @@ plain Node, no dependencies to install:
 ## Deployment
 
 The repo is published via the Azure Static Web Apps workflow (`.github/`). A change to
-the `main` branch updates the site. All files (`index.html`, `festivals.json`, the
-`data-<id>.json` files, the manifest, `sw.js` and the icons) are plain static assets — there is no build step
-(`app_location: "/"`, `output_location: "."`). Remember to bump `CACHE` in `sw.js`
-when releasing (see "Offline / PWA").
+the `main` branch updates the site once the validation job has passed. All app files
+(`index.html`, `qr.js`, `festivals.json`, the `data-<id>.json` files, the manifest,
+`sw.js` and the icons) are plain static assets — nothing is compiled.
+`scripts/build-site.sh _site <tag>` only **assembles** them: it copies the committed
+files except `tests/`, `scripts/`, `*.md` and dotfiles into `_site`, stamps `CACHE`
+in the copied `sw.js`, and fails if a file in the `sw.js` ASSETS list is missing.
+The workflow deploys `_site` as-is (`app_location: "_site"`, `skip_app_build: true`).
+A new asset file at the repo root (or in a new folder) is included automatically.
+When hosting without this workflow, run the script without a tag and bump `CACHE` in
+`sw.js` by hand (see "Offline / PWA").

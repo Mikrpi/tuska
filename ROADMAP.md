@@ -97,6 +97,28 @@ valmistuu tai järjestys muuttuu.
   QR-koodi, josta aikataulun saa auki. Mobiilissa natiivi jakovalikko,
   muuten lataus.
 
+### Katselmoinnin korjaukset: tallennus, offline ja CI (16.11.2026)
+
+- [x] **Ohjelmamuutos ei pyyhi omia valintoja** — localStorage-varmuuskopio
+  (v2) tallentaa valinnat myös nimillä; muuttuneeseen ohjelmaan ne
+  kohdistetaan päivän ja nimen perusteella (kaksi settiä: lähin alkuaika).
+  Poistuneet kerrotaan nimeltä, saman slotin korvaaja ei peri valintaa. Aiemmin
+  pelkkä actin lisäys loppuun nollasi valinnat ja varmuuskopion hiljaa.
+- [x] **Ohjelman sormenjälki jakokoodissa** (`#s=<määrä>-<sormenjälki>.<maski>`)
+  — poisto + lisäys (`--prune`) tai uudelleenjärjestely samalla määrällä
+  hylkää vanhat linkit ilmoituksella eikä enää valitse vääriä artisteja
+  hiljaa. Aika- ja lavamuutokset eivät riko linkkejä. Tuontityökalu raportoi
+  id-siirtymät ja linkkien vanhenemisen.
+- [x] **Offline-avaus millä tahansa `?f=`/`?now=`-osoitteella** — service
+  worker vastaa navigaatioon app shellillä kyselyparametreista riippumatta.
+- [x] **Heikko kenttä ei jumita käynnistystä** — JSON-haulla 3 s aikakatkaisu,
+  jonka jälkeen vastataan välimuistikopiolla (päivitys jatkuu taustalla);
+  sivulla lataustila. Uusi `tests/sw.test.js`.
+- [x] **CI** — validointi ja kaikki testit (myös `qr.test.js`) ovat deployn
+  ensimmäinen job, eikä julkaisu lähde ilman niitä; julkaisuun kootaan vain
+  sovelluksen tiedostot (`scripts/build-site.sh` → `_site`, ei testejä,
+  skriptejä eikä md-tiedostoja).
+
 ## Tekemättä: ylläpidon helpottaminen
 
 - [ ] **Siivous:** `/workspace/Tuska-copy` (repon ulkopuolinen vanha kopio)
@@ -113,8 +135,10 @@ valmistuu tai järjestys muuttuu.
 
 ## Tiedossa olevat rajoitteet (ei työn alla)
 
-- Julkaistun ohjelman **uudelleenjärjestely act-määrää muuttamatta** jää
-  linkkien määrätarkistukselta huomaamatta — uudet actit aina listan loppuun
-  (dokumentoitu MAINTENANCE.md:ssä).
+- Ennen sormenjälkeä tehdyt linkit (`#s=<määrä>.<maski>`, kaikki 2026-festarit)
+  tarkistetaan yhä vain määrällä — niissä samanmääräinen ohjelmamuutos jää
+  huomaamatta. Uudet linkit tarkistetaan aina.
+- Actin **nimen muutos** vanhentaa jaetut linkit ja pudottaa oman valinnan
+  ilmoituksella (kirjoitusasun korjausta ei voi erottaa korvaavasta actista).
 - Vanhat hash-only-linkit (ilman `?f=` ja määräetuliitettä) avautuvat
   oletusfestaria vasten; ne ovat joka tapauksessa vanhentuneita.

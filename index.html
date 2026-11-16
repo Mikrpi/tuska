@@ -265,7 +265,8 @@
   </div>
 
   <div class="layout">
-    <div class="col-days" id="days"></div>
+    <!-- Lataustila näkyy heti (staattinen markup), kunnes renderDays/showLoadError korvaa sen. -->
+    <div class="col-days" id="days"><div class="empty" id="loadingMsg" role="status">Loading schedule…</div></div>
     <div class="col-mine">
       <div class="panel">
         <h2>My timetable</h2>
@@ -418,10 +419,29 @@
 
   // --- URL-tila: valinnat bittimaskina base64url-muodossa hash-osassa (#s=...) ---
   // Bitti i = acts[i] valittu. Hash ei lähde palvelimelle -> valinta pysyy yksityisenä.
-  // Koodin alussa on actien määrä ("60.<maski>"): jos ohjelma muuttuu linkin luonnin
-  // jälkeen, määrä ei täsmää ja koodi hylätään sen sijaan, että bittimaski osuisi
-  // hiljaa vääriin artisteihin. Etuliitteettömät koodit (vanhat linkit ja ennen tätä
-  // versiota tallennetut varmuuskopiot) hyväksytään ilman määrätarkistusta.
+  // Koodin alussa on ohjelman tunniste "<määrä>-<sormenjälki>." (esim. "60-k3x9p2.<maski>").
+  // Sormenjälki lasketaan actien järjestyksestä (päivä + nimi), joten jos ohjelmasta
+  // poistetaan acteja, siihen lisätään acteja tai sitä järjestellään uudelleen linkin
+  // luonnin jälkeen, koodi hylätään sen sijaan, että bittimaski osuisi hiljaa vääriin
+  // artisteihin. Pelkkä määrä ei tähän riittänyt: poisto + lisäys pitää määrän
+  // samana mutta siirtää indeksejä. Aika- ja lavamuutokset eivät muuta sormenjälkeä.
+  // Vanhemmat muodot hyväksytään yhä: "<määrä>.<maski>" (vain määrätarkistus) ja
+  // pelkkä "<maski>" (ei tarkistusta).
+
+  // FNV-1a (32 bit) actien järjestetystä (päivä, nimi) -listasta, base36-muodossa.
+  // Nimi normalisoidaan (reunavälit pois, pienaakkoset) kuten tuontityökalun
+  // actKey, jotta pelkkä kirjoitusasun kirjainkoko ei hylkää linkkejä.
+  function lineupFingerprint(acts) {
+    let h = 0x811c9dc5;
+    for (const a of acts) {
+      const s = a.day + "\u0000" + String(a.name).trim().toLowerCase() + "\u0001";
+      for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+      }
+    }
+    return (h >>> 0).toString(36);
+  }
 
   function encodeSelection() {
     if (!selected.size) return "";
@@ -431,7 +451,7 @@
     let bin = "";
     for (const b of bytes) bin += String.fromCharCode(b);
     const mask = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    return n + "." + mask;
+    return n + "-" + lineupFingerprint(DATA.acts) + "." + mask;
   }
 
   // Palauttaa koodin valinnat Settinä, tai null jos koodi on viallinen tai tehty
@@ -439,10 +459,16 @@
   function decodeToSet(code) {
     if (!code) return new Set();
     let mask = code;
-    const m = code.match(/^(\d+)\.(.*)$/);
-    if (m) {
-      if (+m[1] !== DATA.acts.length) return null; // ohjelma muuttunut -> hylkää
-      mask = m[2];
+    // Muodot erottuvat yksiselitteisesti: base64url-maskissa ei ole pistettä.
+    const cur = code.match(/^(\d+)-([0-9a-z]+)\.(.*)$/); // määrä + sormenjälki
+    const old = !cur && code.match(/^(\d+)\.(.*)$/);     // vanha: pelkkä määrä
+    if (cur) {
+      // ohjelma muuttunut -> hylkää
+      if (+cur[1] !== DATA.acts.length || cur[2] !== lineupFingerprint(DATA.acts)) return null;
+      mask = cur[3];
+    } else if (old) {
+      if (+old[1] !== DATA.acts.length) return null; // ohjelma muuttunut -> hylkää
+      mask = old[2];
     }
     try {
       let b64 = mask.replace(/-/g, "+").replace(/_/g, "/");
@@ -490,14 +516,76 @@
   // Hash kulkee jaetussa linkissä, mutta jos appi avataan kotinäytön ikonista
   // ilman linkkiä, valinta säilyy täällä. Avain on festarikohtainen, joten eri
   // vuosien valinnat eivät sekoitu keskenään.
+  //
+  // Muoto (v2): {"v":2,"code":"<jakokoodi>","picks":[{day,name,stage,start},…]}.
+  // Valinnat tallennetaan myös nimillä, koska bittimaskin indeksit eivät kestä
+  // ohjelmamuutosta: muuttuneeseen ohjelmaan omat valinnat kohdistetaan
+  // uudelleen päivän ja nimen perusteella (matchPicks) sen sijaan, että ne
+  // hylättäisiin ja varmuuskopio pyyhkiytyisi. Vanha muoto (pelkkä jakokoodi)
+  // luetaan yhä.
   function storageKey() { return "festival-picks:" + (activeFestival || "default"); }
 
   function saveLocal(code) {
-    try { localStorage.setItem(storageKey(), code); } catch (e) { /* esim. privaattitila */ }
+    const value = code ? JSON.stringify({
+      v: 2,
+      code,
+      picks: [...selected].sort((a, b) => a - b).map(actById)
+        .map((a) => ({ day: a.day, name: a.name, stage: a.stage, start: a.start })),
+    }) : "";
+    try { localStorage.setItem(storageKey(), value); } catch (e) { /* esim. privaattitila */ }
   }
 
   function loadLocal() {
     try { return localStorage.getItem(storageKey()) || ""; } catch (e) { return ""; }
+  }
+
+  // Kohdistaa tallennetut valinnat nykyiseen ohjelmaan päivän ja nimen perusteella
+  // (kirjainkoosta ja reunaväleistä riippumatta). Saman päivän samannimisistä
+  // acteista (kaksi settiä) valitaan alkuajaltaan lähin. Pelkkää aikaslottia ei
+  // käytetä: peruutetun bändin tilalle samaan slottiin tullut esiintyjä ei saa
+  // periä valintaa. Palauttaa { ids, lost } — lost = nimet, joita ei enää löydy.
+  function matchPicks(picks, acts) {
+    const norm = (s) => String(s).trim().toLowerCase();
+    const isTime = (t) => typeof t === "string" && /^\d{1,2}:\d{2}$/.test(t);
+    const ids = new Set(), lost = [];
+    for (const p of picks) {
+      if (!p || typeof p.name !== "string" || !p.name.trim()) continue; // rikkinäinen merkintä
+      const key = norm(p.name);
+      let best = null, bestDist = Infinity;
+      for (const a of acts) {
+        if (ids.has(a.id) || a.day !== p.day || norm(a.name) !== key) continue;
+        const dist = isTime(p.start) && isTime(a.start) ? Math.abs(eveMin(a.start) - eveMin(p.start)) : 0;
+        if (dist < bestDist) { best = a; bestDist = dist; }
+      }
+      if (best) ids.add(best.id);
+      else lost.push(p.name);
+    }
+    return { ids, lost };
+  }
+
+  // Oma tallennettu valinta nykyiseen ohjelmaan kohdistettuna:
+  // { ids, code (tallennettu jakokoodi), lost (poistuneet nimet),
+  //   unreadable (vanhan muodon koodi on tehty eri ohjelmaversiolle) }.
+  function loadOwn() {
+    const none = { ids: new Set(), code: "", lost: [], unreadable: false };
+    const raw = loadLocal();
+    if (!raw) return none;
+    if (raw.charAt(0) === "{") {
+      let b = null;
+      try { b = JSON.parse(raw); } catch (e) { return none; }
+      if (!b || !Array.isArray(b.picks)) return none;
+      const { ids, lost } = matchPicks(b.picks, DATA.acts);
+      return { ids, code: typeof b.code === "string" ? b.code : "", lost, unreadable: false };
+    }
+    // Vanha muoto: pelkkä indeksipohjainen jakokoodi — ei nimiä, joilla kohdistaa.
+    const ids = decodeToSet(raw);
+    return ids ? { ...none, ids, code: raw } : { ...none, code: raw, unreadable: true };
+  }
+
+  function lostNote(names) {
+    const shown = names.slice(0, 3).join(", ") +
+      (names.length > 3 ? ` and ${names.length - 3} more` : "");
+    return `The line-up has changed — removed from your picks: ${shown}.`;
   }
 
   // Oma aikataulun nimi säilyy festarikohtaisesti kuten valinnatkin.
@@ -533,32 +621,45 @@
   // VERTAILUTILA — omat valinnat jäävät voimaan ja kaverin valinnat näkyvät
   // rinnalla, kunnes vertailu suljetaan tai kaverin valinnat otetaan käyttöön.
   // Eri ohjelmaversiolle tehty tai viallinen linkki hylätään ilmoituksella.
+  // Omat valinnat kohdistetaan muuttuneeseen ohjelmaan nimillä (loadOwn);
+  // poistuneista kerrotaan ilmoituksella.
   function restoreSelection() {
     compare = null; // mahdollinen edellinen vertailu päättyy aina tässä
+    const own = loadOwn();
+    const notes = []; // [teksti, kesto ms]
+    if (own.lost.length) notes.push([lostNote(own.lost), 8000]);
+    if (own.unreadable) {
+      notes.push(["Your saved picks were made for an older line-up and could not be restored.", 8000]);
+    }
+    const done = (ids) => {
+      setSelection(ids);
+      if (notes.length) {
+        toast(notes.map((n) => n[0]).join(" "), Math.max(...notes.map((n) => n[1])));
+      }
+    };
     const link = hashCode();
-    const own = decodeToSet(loadLocal()) || new Set();
-    if (!link) { setSelection(own); return; }
+    // Ei linkkiä, tai osoitteessa on oma viimeksi tallennettu koodi (esim.
+    // välilehden uudelleenlataus ohjelmamuutoksen jälkeen) — se ei ole kaverin
+    // linkki, joten käytetään omia, uudelleen kohdistettuja valintoja.
+    if (!link || link === own.code) return done(own.ids);
     const shared = decodeToSet(link);
     if (shared === null) {
-      setSelection(own);
-      toast("This link was made for an older line-up — showing your own picks instead.", 6000);
-      return;
+      notes.unshift(["This link was made for an older line-up — showing your own picks instead.", 6000]);
+      return done(own.ids);
     }
-    const same = shared.size === own.size && [...shared].every((id) => own.has(id));
+    const same = shared.size === own.ids.size && [...shared].every((id) => own.ids.has(id));
     if (!shared.size || same) {
       // Tyhjä jaettu valinta ei kanna tietoa; identtinen ei vaadi vertailua.
-      setSelection(own.size ? own : shared);
-      return;
+      return done(own.ids.size ? own.ids : shared);
     }
-    if (!own.size) {
+    if (!own.ids.size) {
       // Ei omia valintoja -> jaettu otetaan sellaisenaan käyttöön.
-      setSelection(shared);
       const nm = nameParam();
-      if (nm) toast(`Loaded “${nm}”`, 3000);
-      return;
+      if (nm) notes.push([`Loaded “${nm}”`, 3000]);
+      return done(shared);
     }
-    setSelection(own);
     compare = { picks: shared, name: nameParam() };
+    done(own.ids);
   }
 
   // Palauttaa setin valittujen id:istä jotka menevät päällekkäin toisen valitun kanssa.
@@ -1461,6 +1562,13 @@
       }).catch(() => {});
     }
 
+    // Heikko kenttä ensimmäisellä käynnillä (ei vielä offline-kopiota): kerro,
+    // että lataus on yhä käynnissä, ettei tyhjältä näyttävä sivu jätä arvailemaan.
+    // Kun offline-kopio on olemassa, sw.js vastaa siitä muutamassa sekunnissa.
+    const slowTimer = setTimeout(() => {
+      const m = $("loadingMsg");
+      if (m) m.textContent = "Still loading — the connection seems slow…";
+    }, 8000);
     try {
       const reg = await fetchJson("festivals.json");
       FESTIVALS = reg.festivals || [];
@@ -1479,6 +1587,8 @@
     } catch (e) {
       showLoadError();
       return;
+    } finally {
+      clearTimeout(slowTimer);
     }
     document.title = `${DATA.festival} — My Schedule`;
     $("appTitle").textContent = `${DATA.festival} — My Schedule`;

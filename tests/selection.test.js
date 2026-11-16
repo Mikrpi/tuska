@@ -62,10 +62,10 @@ DATA = { acts: Array.from({length:60},(_,i)=>({id:i})), days: [] };
 
 // --- encode/decode ---
 
-// round-trip uudella "<count>.<mask>"-muodolla
+// round-trip nykyisellä "<count>-<fingerprint>.<mask>"-muodolla
 selected.clear(); [0,5,33,59].forEach(i=>selected.add(i));
 const code = encodeSelection();
-t("encode has count prefix", code.startsWith("60."));
+t("encode has count + fingerprint prefix", /^60-[0-9a-z]+\.[A-Za-z0-9_-]+$/.test(code));
 const back = decodeToSet(code);
 t("round-trip", back && back.size===4 && [0,5,33,59].every(i=>back.has(i)));
 
@@ -89,8 +89,30 @@ t("count mismatch -> null", decodeToSet(c60)===null);
 DATA = { acts: Array.from({length:60},(_,i)=>({id:i})), days: [] };
 
 // viallinen syöte -> null (ei hiljaista tyhjää valintaa)
-t("corrupt new-format -> null", decodeToSet("60.!!!")===null);
+t("corrupt count-format -> null", decodeToSet("60.!!!")===null);
 t("corrupt legacy -> null", decodeToSet("%%%")===null);
+t("corrupt fingerprint-format -> null", decodeToSet("60-" + lineupFingerprint(DATA.acts) + ".!!!")===null);
+
+// --- ohjelman sormenjälki: indeksisiirtymät havaitaan myös samalla määrällä ---
+
+const lineup = (names) => names.map((n, i) => ({ id:i, name:n, day:"fri", stage:"S", start:"18:00", end:"19:00" }));
+DATA = { acts: lineup(["A","B","C","D"]), days: [] };
+selected.clear(); [1,3].forEach(i=>selected.add(i)); // B, D
+const fpCode = encodeSelection();
+// --prune: B poistuu, E lisätään loppuun -> määrä sama (4), C ja D siirtyvät
+DATA = { acts: lineup(["A","C","D","E"]), days: [] };
+t("prune + add at same count -> rejected", decodeToSet(fpCode)===null);
+// uudelleenjärjestely samalla määrällä
+DATA = { acts: lineup(["A","D","C","B"]), days: [] };
+t("reorder at same count -> rejected", decodeToSet(fpCode)===null);
+// aika-, lava- ja kirjainkokomuutos eivät riko linkkiä
+DATA = { acts: lineup(["a ","B","C","D"]).map((a)=>({ ...a, stage:"T", start:"20:00", end:"21:00" })), days: [] };
+const kept = decodeToSet(fpCode);
+t("time/stage/case changes keep the link valid", kept && kept.size===2 && kept.has(1) && kept.has(3));
+// eri päivälle siirto muuttaa sormenjäljen (päivä on osa actin identiteettiä)
+DATA = { acts: lineup(["A","B","C","D"]).map((a,i)=>i===0 ? { ...a, day:"sat" } : a), days: [] };
+t("moving an act to another day -> rejected", decodeToSet(fpCode)===null);
+DATA = { acts: Array.from({length:60},(_,i)=>({id:i})), days: [] };
 
 // --- restoreSelection: jaettu linkki vs. oma varmuuskopio (vertailutila) ---
 
@@ -151,6 +173,114 @@ state.store["festival-picks:test"] = legacy; // idt 0 ja 5
 location.hash = "";
 restoreSelection();
 t("legacy localStorage backup accepted", selected.size===2 && selected.has(0) && selected.has(5));
+
+// --- varmuuskopio v2: omat valinnat kestävät ohjelmamuutoksen ---
+
+const toasts = [];
+toast = (msg) => { toasts.push(msg); };
+const fest = (names, extra) => ({ days: [], acts: names.map((n, i) => ({
+  id:i, name:n, day:"fri", stage:"Main", start:(14+i%10)+":00", end:(14+i%10)+":45", ...(extra && extra(i)),
+})) });
+const names60 = Array.from({length:60},(_,i)=>"Band " + i);
+// Tallennettu varmuuskopio oliona ({} jos ei luettavissa — väite epäonnistuu, testi ei kaadu).
+const backup = () => { try { return JSON.parse(state.store["festival-picks:test"]) || {}; } catch (e) { return {}; } };
+
+// syncUrl kirjoittaa v2-varmuuskopion: koodi + valinnat nimillä
+DATA = fest(names60);
+location.hash = "";
+selected.clear(); [0,5,12,33,59].forEach(i=>selected.add(i));
+syncUrl();
+const v2 = backup();
+t("backup v2 stores code and picks by name", v2.v===2 && v2.code===encodeSelection() &&
+  (v2.picks || []).length===5 && v2.picks[1].name==="Band 5" && v2.picks[1].day==="fri");
+
+// Vika 1: actin lisäys ohjelman loppuun ei saa pyyhkiä omia valintoja
+DATA = fest(names60.concat(["Late Addition"]));
+location.hash = ""; selected.clear(); toasts.length = 0;
+restoreSelection(); syncUrl();
+t("appended act -> own picks kept", selected.size===5 && [0,5,12,33,59].every(i=>selected.has(i)));
+t("appended act -> no notice", toasts.length===0);
+t("appended act -> backup rewritten, not wiped",
+  (backup().picks || []).length===5);
+
+// Poisto + lisäys (--prune): valinnat seuraavat nimiä, poistunut ilmoitetaan nimeltä
+DATA = fest(names60.filter((n)=>n!=="Band 5").concat(["Late Addition", "Replacement"]));
+location.hash = ""; selected.clear(); toasts.length = 0;
+restoreSelection();
+const pickedNames = [...selected].map((id)=>DATA.acts[id].name).sort();
+t("pruned line-up -> remaining picks re-matched by name",
+  pickedNames.join("|")==="Band 0|Band 12|Band 33|Band 59");
+t("pruned line-up -> removed pick named in a notice",
+  toasts.length===1 && toasts[0].includes("Band 5") && !toasts[0].includes("Band 12"));
+syncUrl();
+
+// Uudelleenjärjestely samalla määrällä: nimet ratkaisevat, eivät indeksit
+DATA = fest(DATA.acts.map((a)=>a.name).reverse());
+location.hash = ""; selected.clear(); toasts.length = 0;
+restoreSelection();
+t("reordered line-up -> own picks follow names",
+  [...selected].map((id)=>DATA.acts[id].name).sort().join("|")==="Band 0|Band 12|Band 33|Band 59");
+
+// Oman vanhan koodin sisältävä osoite (välilehden uudelleenlataus ohjelma-
+// muutoksen jälkeen) ei ole "vanhentunut kaverin linkki"
+const ownOldCode = backup().code;
+DATA = fest(DATA.acts.map((a)=>a.name).concat(["Another"]));
+location.hash = "#s=" + ownOldCode; selected.clear(); toasts.length = 0; compare = null;
+restoreSelection();
+t("own stale URL after line-up change -> own picks, no compare, no notice",
+  selected.size===4 && compare===null && toasts.length===0);
+
+// Kaverin vanhentunut linkki hylätään yhä ilmoituksella, omat säilyvät
+location.hash = "#s=4-abc.AAAB"; selected.clear(); toasts.length = 0;
+restoreSelection();
+t("friend's stale link -> rejected with notice, own kept",
+  selected.size===4 && toasts.length===1 && /older line-up/.test(toasts[0]));
+
+// Saman artistin kaksi settiä: valinta seuraa lähintä alkuaikaa
+DATA = { days: [], acts: [
+  { id:0, name:"DJ X", day:"fri", stage:"Kvlt", start:"18:00", end:"19:00" },
+  { id:1, name:"DJ X", day:"fri", stage:"Kvlt", start:"23:00", end:"00:30" },
+] };
+selected.clear(); selected.add(1); location.hash = ""; syncUrl(); // vain myöhäinen setti
+DATA = { days: [], acts: [
+  { id:0, name:"Opener", day:"fri", stage:"Main", start:"16:00", end:"17:00" },
+  { id:1, name:"DJ X", day:"fri", stage:"Kvlt", start:"18:00", end:"19:00" },
+  { id:2, name:"DJ X", day:"fri", stage:"Kvlt", start:"23:30", end:"01:00" },
+] };
+selected.clear(); restoreSelection();
+t("double set -> pick follows the nearest start time", selected.size===1 && selected.has(2));
+
+// Saman aikaslotin korvaaja ei peri peruutetun bändin valintaa
+DATA = { days: [], acts: [{ id:0, name:"Cancelled Band", day:"fri", stage:"Main", start:"20:00", end:"21:00" }] };
+selected.clear(); selected.add(0); location.hash = ""; syncUrl();
+DATA = { days: [], acts: [{ id:0, name:"Replacement", day:"fri", stage:"Main", start:"20:00", end:"21:00" }] };
+selected.clear(); toasts.length = 0; restoreSelection();
+t("same-slot replacement does not inherit the pick", selected.size===0 && /Cancelled Band/.test(toasts[0] || ""));
+
+// Vanhan muodon varmuuskopio eri ohjelmaversiolle -> ilmoitus, ei hiljaista katoamista
+DATA = fest(names60.concat(["Late Addition"]));
+state.store["festival-picks:test"] = "60.IRAAAAIAAAg";
+location.hash = ""; selected.clear(); toasts.length = 0;
+restoreSelection();
+t("unreadable legacy backup -> notice", selected.size===0 && toasts.length===1 && /could not be restored/.test(toasts[0]));
+
+// Rikkinäinen JSON ei kaada käynnistystä
+state.store["festival-picks:test"] = "{broken";
+selected.clear(); toasts.length = 0;
+let threw = false;
+try { restoreSelection(); } catch (e) { threw = true; }
+t("corrupt v2 backup -> empty selection, no throw", !threw && selected.size===0);
+
+// Vertailu toimii v2-varmuuskopion kanssa: eroava kaverin linkki
+DATA = fest(names60);
+selected.clear(); [1,2].forEach(i=>selected.add(i)); location.hash = ""; syncUrl();
+selected.clear(); [3,4].forEach(i=>selected.add(i));
+location.hash = "#s=" + encodeSelection();
+selected.clear(); compare = null; restoreSelection();
+t("v2 backup + differing link -> compare mode",
+  selected.size===2 && selected.has(1) && compare && compare.picks.has(3));
+compare = null;
+DATA = { acts: Array.from({length:60},(_,i)=>({id:i})), days: [] };
 
 // --- nimi jaetussa linkissä (#...&n=...) ---
 

@@ -31,12 +31,15 @@ backup) and never leaves their browser.
 ## Development
 
 Plain HTML/CSS/JS in `index.html` plus a small vendored QR generator (`qr.js`).
-No dependencies to install. Checks (also run in CI on every push and PR):
+No dependencies to install. Checks (also run in CI on every push and PR, and
+the deploy waits for them):
 
 ```sh
 node scripts/validate-data.js     # festival data + sw.js precache list
 node tests/selection.test.js      # share-link logic (extracted from index.html)
 node tests/import.test.js         # data import tool
+node tests/qr.test.js             # QR generator (independent decoder)
+node tests/sw.test.js             # service worker offline behaviour
 ```
 
 New festival line-ups are imported with:
@@ -51,4 +54,6 @@ ongoing chore: bump the `CACHE` constant in `sw.js` when releasing.
 ## Deployment
 
 Published via Azure Static Web Apps (workflow in `.github/`): a change to the
-`main` branch updates the site as-is — every file is a plain static asset.
+`main` branch updates the site once the checks pass. Every app file is a plain
+static asset; `scripts/build-site.sh` only gathers them (no tests, scripts or
+docs) into `_site` and stamps the service worker's cache version.

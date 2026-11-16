@@ -13,8 +13,11 @@
  * Fresh import: festival name, info URL and day metadata are asked
  * interactively. Update (data-<id>.json exists): existing act order and ids
  * are preserved, changed acts are updated in place and new acts appended to
- * the end — published links stay valid unless the act count changes, which is
- * reported. Acts missing from the input are kept unless --prune is given.
+ * the end. Acts missing from the input are kept unless --prune is given;
+ * pruning moves every later act to a new id. Published links stay valid as
+ * long as the ordered (day, name) list is unchanged; otherwise the app's
+ * line-up fingerprint rejects them with a notice (never the wrong artists)
+ * and visitors' own saved picks are re-matched by name — the tool reports it.
  * The festival is also registered in festivals.json and the sw.js ASSETS
  * precache list (with a CACHE bump) if missing, and validate-data.js runs at
  * the end. --dry-run reports everything but writes nothing.
@@ -128,8 +131,9 @@ const actKey = (a) => `${a.day}\u0000${a.name.trim().toLowerCase()}`;
 
 /* Yhdistää uudet rivit olemassa oleviin acteihin. Kriittinen sääntö: julkaistua
  * järjestystä ei muuteta — vanhat actit pitävät paikkansa (ja siten bittimaski-
- * indeksinsä), uudet lisätään loppuun. Id:t numeroidaan lopuksi 0..N-1.
- * Palauttaa { acts, report: { added, updated, unchanged, missing, pruned } }. */
+ * indeksinsä), uudet lisätään loppuun. Id:t numeroidaan lopuksi 0..N-1, joten
+ * --prune siirtää poistettujen jälkeiset actit uusille id:ille (report.shifted).
+ * Palauttaa { acts, report: { added, updated, unchanged, missing, pruned, shifted } }. */
 function mergeActs(existing, rows, opts = {}) {
   const bucket = new Map(); // key → jono uusia rivejä
   for (const r of rows) {
@@ -138,27 +142,36 @@ function mergeActs(existing, rows, opts = {}) {
     bucket.get(k).push(r);
   }
 
-  const report = { added: [], updated: [], unchanged: [], missing: [], pruned: [] };
-  const kept = [];
-  for (const a of existing) {
+  const report = { added: [], updated: [], unchanged: [], missing: [], pruned: [], shifted: [] };
+  const kept = []; // { a, from } — from = vanha indeksi (null = uusi acti)
+  existing.forEach((a, from) => {
     const q = bucket.get(actKey(a));
     const r = q && q.length ? q.shift() : null;
     if (!r) {
       (opts.prune ? report.pruned : report.missing).push(a.name);
-      if (!opts.prune) kept.push({ ...a });
-      continue;
+      if (!opts.prune) kept.push({ a: { ...a }, from });
+      return;
     }
     const changed = a.stage !== r.stage || a.start !== r.start || a.end !== r.end || a.name !== r.name;
-    kept.push({ ...a, name: r.name, stage: r.stage, start: r.start, end: r.end });
+    kept.push({ a: { ...a, name: r.name, stage: r.stage, start: r.start, end: r.end }, from });
     (changed ? report.updated : report.unchanged).push(r.name);
-  }
+  });
   for (const r of rows) { // lisäykset syötteen järjestyksessä
     const q = bucket.get(actKey(r));
-    if (q.length && q[0] === r) { q.shift(); report.added.push(r.name); kept.push(r); }
+    if (q.length && q[0] === r) { q.shift(); report.added.push(r.name); kept.push({ a: r, from: null }); }
   }
 
-  const acts = kept.map((a, i) => ({ id: i, name: a.name, day: a.day, stage: a.stage, start: a.start, end: a.end }));
+  const acts = kept.map(({ a }, i) => ({ id: i, name: a.name, day: a.day, stage: a.stage, start: a.start, end: a.end }));
+  kept.forEach(({ a, from }, i) => { if (from !== null && from !== i) report.shifted.push(a.name); });
   return { acts, report };
+}
+
+/* Muuttuiko julkaistu järjestys niin, että sovellus hylkää vanhat jakolinkit?
+ * Sovelluksen sormenjälki (index.html: lineupFingerprint) lasketaan actien
+ * järjestetystä (päivä, nimi) -listasta samalla normalisoinnilla kuin actKey —
+ * aika- ja lavamuutokset tai pelkkä kirjainkoko eivät vaikuta. */
+function lineupChanged(before, after) {
+  return before.length !== after.length || before.some((a, i) => actKey(a) !== actKey(after[i]));
 }
 
 // Päivät aikajärjestykseen labelin päivämäärän mukaan (validator varoittaa muusta).
@@ -232,7 +245,7 @@ function addToPrecache(swText, dataFile) {
   return { text, cache };
 }
 
-module.exports = { normTime, splitLine, parseTable, mergeActs, sortDays, collectStages, formatData, registerFestival, addToPrecache, eveMin };
+module.exports = { normTime, splitLine, parseTable, mergeActs, lineupChanged, sortDays, collectStages, formatData, registerFestival, addToPrecache, eveMin };
 
 // --- CLI ---------------------------------------------------------------------
 
@@ -340,9 +353,11 @@ async function main() {
     `${report.unchanged.length} unchanged` +
     (report.missing.length ? `, ${report.missing.length} missing from input (kept: ${report.missing.join(", ")})` : "") +
     (report.pruned.length ? `, ${report.pruned.length} pruned: ${report.pruned.join(", ")}` : ""));
-  if (prev && acts.length !== prev.acts.length) {
-    console.log(`NOTE  act count changed ${prev.acts.length} → ${acts.length}: ` +
-      `already-shared links will be rejected with a notice (see MAINTENANCE.md)`);
+  if (prev && lineupChanged(prev.acts, acts)) {
+    console.log(`NOTE  the act list changed (${prev.acts.length} → ${acts.length} acts` +
+      (report.shifted.length ? `; ${report.shifted.length} existing act(s) moved to a new id` : "") +
+      `): already-shared links will be rejected with a notice instead of selecting ` +
+      `the wrong artists; visitors' own saved picks are re-matched by name (see MAINTENANCE.md)`);
   }
 
   // Rekisteröinti: festivals.json + sw.js:n precache-lista.

@@ -1,10 +1,11 @@
 name: Validate
 
+# Ajetaan deploy-workflown ensimmäisenä jobina (azure-static-web-apps-*.yml):
+# julkaisu lähtee vain, jos kaikki tarkistukset menevät läpi. Käsin ajettavissa
+# Actions-välilehdeltä (workflow_dispatch).
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_call:
+  workflow_dispatch:
 
 jobs:
   validate:
@@ -26,6 +27,11 @@ jobs:
         run: |
           node tests/selection.test.js
           node tests/import.test.js
+          node tests/qr.test.js
+          node tests/sw.test.js
+
+      - name: Check that the site assembles
+        run: bash scripts/build-site.sh _site
 
       - name: Check sw.js cache version bump
         if: github.event_name == 'pull_request'

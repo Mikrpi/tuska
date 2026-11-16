@@ -8,7 +8,7 @@
 "use strict";
 
 const {
-  normTime, parseTable, mergeActs, sortDays, collectStages,
+  normTime, parseTable, mergeActs, lineupChanged, sortDays, collectStages,
   formatData, registerFestival, addToPrecache,
 } = require("../scripts/import-data.js");
 
@@ -111,6 +111,26 @@ t("double set pairs by order", m.acts.length === 2 && m.acts[0].start === "18:00
 // Sama nimi eri päivänä on eri acti.
 m = mergeActs([act(0, "A", "fri", "Main", "14:30", "15:25")], [row("sat", "Main", "14:30", "15:25", "A")]);
 t("same name on another day is a new act", m.acts.length === 2 && m.report.added.length === 1 && m.report.missing.length === 1);
+
+// --- id-siirtymät ja jakolinkkien kelpoisuus (sovelluksen sormenjälki) ---
+
+const four = ["A", "B", "C", "D"].map((n, i) => act(i, n, "fri", "Main", `1${i}:00`, `1${i}:30`));
+const rowsOf = (names) => names.map((n, i) => row("fri", "Main", `1${i}:00`, `1${i}:30`, n));
+
+// --prune + lisäys samalla määrällä: entinen hiljainen indeksisiirtymä raportoidaan
+m = mergeActs(four, rowsOf(["A", "C", "D", "E"]), { prune: true });
+t("prune reports the acts that moved to a new id", m.report.shifted.join("|") === "C|D");
+t("prune + add at the same count changes the line-up", m.acts.length === 4 && lineupChanged(four, m.acts));
+
+m = mergeActs(four, rowsOf(["A", "B", "C", "D", "E"]));
+t("append moves no ids", m.report.shifted.length === 0);
+t("append changes the line-up (old links rejected)", lineupChanged(four, m.acts));
+
+m = mergeActs(four, rowsOf(["a", "B", "C", "D"]).map((r) => ({ ...r, stage: "Second", start: "20:00", end: "21:00" })));
+t("time/stage/case-only update keeps links valid", !lineupChanged(four, m.acts) && m.report.shifted.length === 0);
+
+m = mergeActs(four, rowsOf(["A", "C", "D"]));
+t("missing act kept by default -> nothing moves", m.report.shifted.length === 0 && !lineupChanged(four, m.acts));
 
 // --- sortDays / collectStages ---
 
